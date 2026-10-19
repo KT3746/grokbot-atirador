@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Atirador de Elite</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%2213%22 fill=%22none%22 stroke=%22%23f2b544%22 stroke-width=%223%22/%3E%3Cpath d=%22M16 2v28M2 16h28%22 stroke=%22%23f2b544%22 stroke-width=%222%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css?v=1.0.0">
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+
+  <!-- MIRA TELESCOPICA -->
+  <div id="scope" class="hidden">
+    <div class="ring">
+      <svg class="reticle" viewBox="-100 -100 200 200" aria-hidden="true">
+        <g stroke="#0a0a0a" fill="none">
+          <line x1="-100" y1="0" x2="-30" y2="0" stroke-width="2.6"/><line x1="30" y1="0" x2="100" y2="0" stroke-width="2.6"/>
+          <line x1="0" y1="30" x2="0" y2="100" stroke-width="2.6"/><line x1="0" y1="-100" x2="0" y2="-30" stroke-width="2.6"/>
+          <line x1="-30" y1="0" x2="30" y2="0" stroke-width="0.45"/><line x1="0" y1="-30" x2="0" y2="30" stroke-width="0.45"/>
+        </g>
+        <g fill="#0a0a0a">
+          <circle cx="-8" cy="0" r="0.9"/><circle cx="-16" cy="0" r="0.9"/><circle cx="-24" cy="0" r="0.9"/>
+          <circle cx="8" cy="0" r="0.9"/><circle cx="16" cy="0" r="0.9"/><circle cx="24" cy="0" r="0.9"/>
+          <circle cx="0" cy="8" r="0.9"/><circle cx="0" cy="16" r="0.9"/><circle cx="0" cy="24" r="0.9"/>
+          <circle cx="0" cy="-8" r="0.9"/><circle cx="0" cy="-16" r="0.9"/>
+        </g>
+        <circle cx="0" cy="0" r="0.8" fill="#ff2a1a"/>
+      </svg>
+      <div id="predict" class="hidden"></div>
+      <div class="scope-info"><span id="s-zoom">6x</span><span id="s-dist">--- m</span></div>
+      <div id="s-target"></div>
+    </div>
+  </div>
+  <div id="flash"></div>
+  <div id="hitmark">✕</div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="markers"></div>
+    <div class="hud-tl panel">
+      <div id="h-name">Missão</div>
+      <div id="h-obj">Alvos: 0/0</div>
+      <div id="h-time">0:00</div>
+    </div>
+    <div class="hud-tc">
+      <div class="lab">ALERTA</div>
+      <div class="bar"><i id="h-alert"></i></div>
+    </div>
+    <div class="hud-wind panel">
+      <div class="wind-dial"><div id="h-warrow">➤</div></div>
+      <div><div id="h-wspeed">0 m/s</div><div id="h-wtext">Vento</div></div>
+    </div>
+    <div class="hud-ammo panel"><div id="h-bullets"></div><div id="h-ammo">5/5</div><div class="reload-bar"><i id="h-reload"></i></div></div>
+    <div class="hud-breath"><div class="lab">FÔLEGO</div><div class="bar"><i id="h-breath"></i></div></div>
+    <div id="popup"><div class="p1"></div><div class="p2"></div></div>
+    <div id="toast"></div>
+    <div id="fps" class="hidden"></div>
+    <div id="lockhint" class="hidden">Clique na tela para mirar com o mouse</div>
+    <button id="b-pause" class="tbtn" aria-label="Pausar">❚❚</button>
+    <div id="touch">
+      <button id="b-breath" class="tbtn round big2">PRENDER<br>RESPIRAÇÃO</button>
+      <button id="b-reload" class="tbtn round small">RECAR-<br>REGAR</button>
+      <button id="b-zoom" class="tbtn round mid">ZOOM</button>
+      <button id="b-fire" class="tbtn round big">ATIRAR</button>
+    </div>
+    <div id="shell"></div>
+  </div>
+
+  <div id="letterbox" class="hidden"><div class="lb top"></div><div class="lb bot"></div><div class="lb-label">TIRO FINAL <span id="kc-dist"></span></div></div>
+  <div id="banner" class="hidden"></div>
+
+  <!-- TELAS -->
+  <section id="title" class="screen hidden">
+    <div class="title-wrap">
+      <div class="logo"><span class="l1">ATIRADOR</span><span class="l2">DE ELITE</span></div>
+      <div class="tag">Missões de precisão contra os Corvos Negros</div>
+      <div class="menu-col">
+        <button class="btn primary" data-go="maps">JOGAR</button>
+        <button class="btn" data-go="arsenal">ARSENAL</button>
+        <button class="btn" data-go="settings">AJUSTES</button>
+      </div>
+      <div class="money-pill" id="t-money">$ 0</div>
+    </div>
+    <div class="ver">versão 1.0.0</div>
+  </section>
+
+  <section id="maps" class="screen hidden">
+    <header><button class="btn back" data-go="title">◀ VOLTAR</button><h2>Escolha a missão</h2><div class="money-pill" id="m-money">$ 0</div></header>
+    <div id="map-list" class="cards"></div>
+  </section>
+
+  <section id="brief" class="screen hidden">
+    <header><button class="btn back" data-go="maps">◀ VOLTAR</button><h2 id="b-title">Missão</h2><div class="money-pill" id="b-money"></div></header>
+    <div class="brief-body">
+      <div class="panel brief-main">
+        <p id="b-desc"></p>
+        <ul id="b-obj"></ul>
+      </div>
+      <div class="panel brief-side">
+        <div class="kv"><span>Vento</span><b id="b-wind"></b></div>
+        <div class="kv"><span>Tempo</span><b id="b-time"></b></div>
+        <div class="kv"><span>Recompensa</span><b id="b-reward"></b></div>
+        <div class="kv"><span>Arma</span><b id="b-weapon"></b></div>
+        <button class="btn small" id="b-change">TROCAR ARMA</button>
+        <button class="btn primary" id="b-start">COMEÇAR</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="arsenal" class="screen hidden">
+    <header><button class="btn back" id="a-back">◀ VOLTAR</button><h2>Arsenal</h2><div class="money-pill" id="a-money">$ 0</div></header>
+    <div class="ars-body">
+      <div id="w-list" class="wlist"></div>
+      <div class="panel ups"><h3>Melhorias</h3><div id="u-list"></div></div>
+    </div>
+  </section>
+
+  <section id="settings" class="screen hidden">
+    <header><button class="btn back" id="s-back">◀ VOLTAR</button><h2>Ajustes</h2><div></div></header>
+    <div class="panel set-body">
+      <div class="row"><span>Qualidade gráfica</span><div class="seg" id="s-quality"><button data-q="auto">Auto</button><button data-q="baixa">Baixa</button><button data-q="media">Média</button><button data-q="alta">Alta</button></div></div>
+      <div class="row"><span>Sensibilidade da mira</span><input type="range" id="s-sens" min="0.3" max="2.5" step="0.1"></div>
+      <div class="row"><span>Volume</span><input type="range" id="s-vol" min="0" max="1" step="0.05"></div>
+      <div class="row"><span>Ajuda na mira (corrige a queda da bala)</span><button class="toggle" id="s-assist"></button></div>
+      <div class="row"><span>Mostrar FPS</span><button class="toggle" id="s-fps"></button></div>
+      <div class="row"><span>Apagar todo o progresso</span><button class="btn small danger" id="s-reset">APAGAR</button></div>
+    </div>
+  </section>
+
+  <section id="pause" class="screen dim hidden">
+    <div class="menu-col center">
+      <h2>Pausado</h2>
+      <button class="btn primary" id="p-resume">CONTINUAR</button>
+      <button class="btn" id="p-restart">REINICIAR MISSÃO</button>
+      <button class="btn" id="p-settings">AJUSTES</button>
+      <button class="btn" id="p-quit">SAIR PARA O MENU</button>
+    </div>
+  </section>
+
+  <section id="result" class="screen dim hidden">
+    <div class="panel res">
+      <h2 id="r-title">MISSÃO CUMPRIDA</h2>
+      <p id="r-reason"></p>
+      <div class="stars" id="r-stars"><i></i><i></i><i></i></div>
+      <div class="r-grid" id="r-grid"></div>
+      <div class="r-money" id="r-money"></div>
+      <div class="r-btns"><button class="btn" id="r-menu">MENU</button><button class="btn" id="r-retry">REPETIR</button><button class="btn primary" id="r-next">PRÓXIMA</button></div>
+    </div>
+  </section>
+
+  <section id="loading" class="screen hidden"><div class="loader"><div class="spin"></div><div id="l-text">Preparando o cenário...</div></div></section>
+  <div id="tutorial" class="hidden"><div class="panel tut"><h3>Como jogar</h3><div id="tut-body"></div><button class="btn primary" id="tut-ok">ENTENDI</button></div></div>
+  <div id="rotate"><div class="phone"></div><p>Gire o celular para jogar.<br>O jogo funciona deitado (paisagem).</p></div>
+  <div id="boot"><div class="loader"><div class="spin"></div><div>Carregando...</div></div></div>
+  <div id="err" class="hidden"></div>
+</div>
+<script type="module" src="js/main.js?v=1.0.0"></script>
+</body>
+</html>
