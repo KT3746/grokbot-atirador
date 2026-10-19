@@ -1,11 +1,11 @@
 // Dados do jogo: armas, melhorias, mapas, missoes e progresso salvo
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
 export const WEAPONS = [
-  { id: 'falcao', name: 'Falcão R7', desc: 'Rifle de ferrolho leve. Bom para começar.', price: 0, zooms: [6, 12], damage: 90, stability: 0.55, mag: 5, velocity: 820, bolt: 1.0, reload: 2.4, recoil: 0.035, color: 0x3b3f33 },
-  { id: 'lince', name: 'Lince M9', desc: 'Mais zoom e mais firme na mão. Derruba com um tiro no peito.', price: 2500, zooms: [6, 12, 16], damage: 110, stability: 0.7, mag: 5, velocity: 880, bolt: 0.9, reload: 2.2, recoil: 0.04, color: 0x2a2d30 },
-  { id: 'gaviao', name: 'Gavião SX', desc: 'Semiautomático. Atira rápido, ótimo contra alvos em grupo.', price: 4200, zooms: [5, 10, 14], damage: 85, stability: 0.8, mag: 10, velocity: 850, bolt: 0.28, reload: 2.6, recoil: 0.03, color: 0x4a4436 },
-  { id: 'trovao', name: 'Trovão .50', desc: 'Calibre pesado. Zoom enorme e a bala sofre menos com o vento.', price: 7500, zooms: [8, 16, 24], damage: 220, stability: 0.6, mag: 4, velocity: 930, bolt: 1.3, reload: 3.0, recoil: 0.07, windRes: 0.6, color: 0x1f2226 },
+  { id: 'falcao', name: 'Falcão R7', desc: 'Rifle de ferrolho leve. Bom para começar.', price: 0, zooms: [8, 14], damage: 90, stability: 0.55, mag: 5, velocity: 820, bolt: 1.0, reload: 2.4, recoil: 0.035, color: 0x3b3f33 },
+  { id: 'lince', name: 'Lince M9', desc: 'Mais zoom e mais firme na mão. Derruba com um tiro no peito.', price: 2500, zooms: [8, 14, 20], damage: 110, stability: 0.7, mag: 5, velocity: 880, bolt: 0.9, reload: 2.2, recoil: 0.04, color: 0x2a2d30 },
+  { id: 'gaviao', name: 'Gavião SX', desc: 'Semiautomático. Atira rápido, ótimo contra alvos em grupo.', price: 4200, zooms: [7, 12, 16], damage: 85, stability: 0.8, mag: 10, velocity: 850, bolt: 0.28, reload: 2.6, recoil: 0.03, color: 0x4a4436 },
+  { id: 'trovao', name: 'Trovão .50', desc: 'Calibre pesado. Zoom enorme e a bala sofre menos com o vento.', price: 7500, zooms: [10, 18, 26], damage: 220, stability: 0.6, mag: 4, velocity: 930, bolt: 1.3, reload: 3.0, recoil: 0.07, windRes: 0.6, color: 0x1f2226 },
 ];
 
 export const UPGRADES = [

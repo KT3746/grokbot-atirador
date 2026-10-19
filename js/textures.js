@@ -1,6 +1,6 @@
 // Texturas procedurais feitas em canvas (sem arquivos externos)
 import * as THREE from 'three';
-import { rng, fbm, noise2, clamp } from './util.js?v=1.0.0';
+import { rng, fbm, noise2, clamp } from './util.js?v=1.1.0';
 
 const cache = new Map();
 let maxAniso = 4;
@@ -82,6 +82,11 @@ export function facade(style, seed = 1) {
     for (let i = 0; i < 1800; i++) { x.fillStyle = Math.random() < 0.5 ? base[1] : 'rgba(255,255,255,0.06)'; x.globalAlpha = 0.25; x.fillRect(Math.random() * W, Math.random() * H, 2 + Math.random() * 6, 1 + Math.random() * 3); }
     x.globalAlpha = 1;
     const cols = 4, rows = 4, cw = W / cols, rh = H / rows;
+    // campo de altura para o mapa de normais (janelas fundas, peitoris salientes, juntas)
+    const hf = new Float32Array(W * H); for (let i = 0; i < W * H; i++) hf[i] = 0.5 + (Math.random() - 0.5) * 0.03;
+    const hrect = (x0, y0, w0, h0, v) => { for (let yy = Math.max(0, y0 | 0); yy < Math.min(H, (y0 + h0) | 0); yy++) for (let xx = Math.max(0, x0 | 0); xx < Math.min(W, (x0 + w0) | 0); xx++) hf[yy * W + xx] = v; };
+    if (style === 'brick') for (let yy = 0; yy < H; yy += 6) { hrect(0, yy, W, 1, 0.42); const off = (yy / 6) % 2 ? 6 : 0; for (let xx = off; xx < W; xx += 12) hrect(xx, yy, 1, 6, 0.42); }
+    if (style !== 'glass') for (let j = 0; j < rows; j++) hrect(0, j * rh, W, 2, 0.62);
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
       const px = i * cw, py = j * rh;
       if (style === 'glass') {
@@ -94,15 +99,20 @@ export function facade(style, seed = 1) {
         x.fillStyle = g; x.fillRect(px + cw * 0.2, py + rh * 0.2, cw * 0.6, rh * 0.56);
         x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(px + cw * 0.2, py + rh * 0.2, cw * 0.6, 3);
         x.fillStyle = base[1]; x.fillRect(px + cw * 0.15, py + rh * 0.78, cw * 0.7, 4);
-        x.fillStyle = '#20262c'; x.fillRect(px + cw * 0.49, py + rh * 0.2, 3, rh * 0.56);
+        x.fillStyle = '#20262c'; x.fillRect(px + cw * 0.49, py + rh * 0.2, 3, rh * 0.56); x.fillRect(px + cw * 0.2, py + rh * 0.45, cw * 0.6, 2);
+        if (r() < 0.3) { x.fillStyle = r() < 0.5 ? 'rgba(200,190,160,0.55)' : 'rgba(120,60,50,0.5)'; x.fillRect(px + cw * 0.2, py + rh * 0.2, cw * (0.15 + r() * 0.2), rh * 0.56); }
+        if (r() < 0.12) { x.fillStyle = '#c9c9c4'; x.fillRect(px + cw * 0.62, py + rh * 0.8, cw * 0.22, rh * 0.14); x.fillStyle = '#8a8a86'; x.fillRect(px + cw * 0.64, py + rh * 0.82, cw * 0.18, rh * 0.1); hrect(px + cw * 0.62, py + rh * 0.8, cw * 0.22, rh * 0.14, 0.9); }
+        hrect(px + cw * 0.2, py + rh * 0.2, cw * 0.6, rh * 0.56, 0.12); hrect(px + cw * 0.49, py + rh * 0.2, 3, rh * 0.56, 0.3);
+        hrect(px + cw * 0.15, py + rh * 0.78, cw * 0.7, 4, 0.8); hrect(px + cw * 0.18, py + rh * 0.17, cw * 0.64, 3, 0.68);
       }
+      if (style === 'glass') { hrect(px, py + rh - 6, cw, 6, 0.75); hrect(px, py, 2, rh, 0.7); }
       if (r() < 0.35) {
         const warm = r() < 0.7; ex.fillStyle = warm ? `rgb(255,${190 + r() * 40},${110 + r() * 40})` : 'rgb(190,215,255)';
         if (style === 'glass') ex.fillRect(px + 2, py + 2, cw - 4, rh - 6); else ex.fillRect(px + cw * 0.2, py + rh * 0.2, cw * 0.6, rh * 0.56);
         x.fillStyle = 'rgba(255,220,160,0.25)'; if (style !== 'glass') x.fillRect(px + cw * 0.2, py + rh * 0.2, cw * 0.6, rh * 0.56);
       }
     }
-    return { map: tex(c), emissiveMap: tex(e) };
+    return { map: tex(c), emissiveMap: tex(e), normalMap: normalFromHeight(hf, W, H, 0.22) };
   });
 }
 

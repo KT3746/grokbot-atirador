@@ -1,9 +1,10 @@
 // Construcao procedural dos cenarios: cidade, montanha e deserto
 import * as THREE from 'three';
+import * as L_ from './life.js?v=1.1.0';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import * as T from './textures.js?v=1.0.0';
-import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.0.0';
+import * as T from './textures.js?v=1.1.0';
+import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.1.0';
 
 const std = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
 
@@ -49,7 +50,14 @@ class Terrain {
     for (let i = 0; i < pos.count; i++) { const x = pos.getX(i) + cx, z = pos.getZ(i) + cz; const y = hfn(x, z); pos.setY(i, y); pos.setX(i, x); pos.setZ(i, z); this.h[i] = y; }
     g.computeVertexNormals();
     const nor = g.attributes.normal, col = new Float32Array(pos.count * 3), c = new THREE.Color();
-    for (let i = 0; i < pos.count; i++) { colfn(pos.getX(i), pos.getY(i), pos.getZ(i), nor.getY(i), c); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    for (let i = 0; i < pos.count; i++) {
+      colfn(pos.getX(i), pos.getY(i), pos.getZ(i), nor.getY(i), c);
+      // oclusao barata: vertices em concavidades ficam mais escuros
+      const ix = i % n, iz = (i / n) | 0; let sum = 0, cnt = 0;
+      for (let dz = -2; dz <= 2; dz += 2) for (let dx = -2; dx <= 2; dx += 2) { const a = ix + dx, b = iz + dz; if ((dx || dz) && a >= 0 && b >= 0 && a < n && b < n) { sum += this.h[a + n * b]; cnt++; } }
+      const conc = cnt ? (sum / cnt - this.h[i]) / this.step : 0; const ao = 1 - clamp(conc * 0.9, 0, 0.4) + clamp(-conc * 0.25, 0, 0.08);
+      col[i * 3] = c.r * ao; col[i * 3 + 1] = c.g * ao; col[i * 3 + 2] = c.b * ao;
+    }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * size / 9, uv.getY(i) * size / 9);
     this.mesh = new THREE.Mesh(g, mat); this.mesh.receiveShadow = true; this.mesh.castShadow = false; this.mesh.userData.surf = 'dirt';
@@ -164,7 +172,7 @@ function buildCity(scene, q, sp) {
   const r = rng(77); const colliders = []; const B = new Batch(); const night = !!sp.night;
   const facs = ['concrete', 'brick', 'glass', 'light'];
   const mats = {};
-  facs.forEach((f, i) => { const t = T.facade(f, i + 1); mats['f' + f] = std({ map: t.map, emissiveMap: t.emissiveMap, emissive: new THREE.Color(0xffffff), emissiveIntensity: night ? 1.6 : (sp.elev < 12 ? 0.25 : 0), roughness: f === 'glass' ? 0.25 : 0.85, metalness: f === 'glass' ? 0.6 : 0 }); });
+  facs.forEach((f, i) => { const t = T.facade(f, i + 1); mats['f' + f] = std({ map: t.map, normalMap: q === 'baixa' ? null : t.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), emissiveMap: t.emissiveMap, emissive: new THREE.Color(0xffffff), emissiveIntensity: night ? 1.6 : (sp.elev < 12 ? 0.25 : 0), roughness: f === 'glass' ? 0.25 : 0.85, metalness: f === 'glass' ? 0.6 : 0 }); });
   const conc = T.groundSet('concrete'); mats.roof = std({ map: conc.map, normalMap: conc.normalMap, color: 0x9a9690 });
   mats.metal = std({ map: T.metalTex().map, metalness: 0.7, roughness: 0.45 });
   const tl = T.tilesTex(); mats.walk = std({ map: tl.map, roughness: 0.9 });
@@ -239,7 +247,7 @@ function buildCity(scene, q, sp) {
   B.build(scene, mats, colliders, surf);
   const flags = [makeFlag(scene, anchors.telhadoA.x - 10, anchors.telhadoA.y, anchors.telhadoA.z + 10, 6), makeFlag(scene, 40, 0.15, -170, 9)];
   const groundAt = (x, z) => (x > plaza.x0 && x < plaza.x1 && z > plaza.z0 && z < plaza.z1) ? 0.15 : 0.04;
-  return { anchors, colliders, groundAt, flags, drift: [], player: { pos: new THREE.Vector3(0, 63.5, 19.0), yaw: 0, pitch: -0.2 }, focus: new THREE.Vector3(0, 0, -230), env: 'cidade' };
+  return { anchors, colliders, groundAt, flags, drift: [], roofTops, player: { pos: new THREE.Vector3(0, 63.5, 19.0), yaw: 0, pitch: -0.2 }, focus: new THREE.Vector3(0, 0, -230), env: 'cidade' };
 }
 
 // ---------- MONTANHA ----------
@@ -380,8 +388,32 @@ function buildDesert(scene, q, sp) {
   return { anchors, colliders, groundAt, flags, drift, player: { pos: new THREE.Vector3(0, py, 3), yaw: 0, pitch: -0.12 }, focus: new THREE.Vector3(vx, gy, vz), env: 'deserto' };
 }
 
-export function buildWorld(mapId, scene, quality, sp) {
-  if (mapId === 'montanha') return buildMountain(scene, quality, sp);
-  if (mapId === 'deserto') return buildDesert(scene, quality, sp);
-  return buildCity(scene, quality, sp);
+export function buildWorld(mapId, scene, quality, sp, sunDir) {
+  const w = mapId === 'montanha' ? buildMountain(scene, quality, sp) : mapId === 'deserto' ? buildDesert(scene, quality, sp) : buildCity(scene, quality, sp);
+  addLife(w, mapId, scene, quality, sp, sunDir || new THREE.Vector3(0, 1, 0));
+  return w;
+}
+
+// Vida e detalhes extras do cenario (nuvens, passaros, fumaca, grama, sombra de contato)
+function addLife(w, mapId, scene, q, sp, sunDir) {
+  const L = []; const ga = w.groundAt;
+  L.push(L_.makeClouds(scene, sp, sunDir));
+  if (mapId === 'cidade') {
+    const far = w.roofTops.filter(t => t.z < -430 && Math.abs(t.x) < 300);
+    const src = [far[3], far[Math.floor(far.length * 0.6)]].filter(Boolean).map((t, i) => ({ x: t.x, y: t.y, z: t.z, scale: 1.2, dark: i === 0 }));
+    L.push(L_.makeSmoke(scene, src, q));
+    L.push(L_.makeBirds(scene, new THREE.Vector3(0, 0, -210), 14, { h: 28, radius: 45, size: 0.45, seed: 3 }));
+    const near = w.roofTops.filter(t => t.z > -520 && t.z < -10); const ao = L_.makeBaseAO(scene, near.map(t => ({ x: t.x, z: t.z, w: t.w, d: t.d })), 0.21, 3.5); if (ao) L.push(ao);
+  } else if (mapId === 'montanha') {
+    const f = w.fire ? w.fire.position : new THREE.Vector3(30, 0, -255);
+    L.push(L_.makeSmoke(scene, [{ x: f.x, y: f.y + 0.5, z: f.z, scale: 0.7 }, { x: -380, y: ga(-380, -900) + 2, z: -900, scale: 1.6, dark: true }], q));
+    L.push(L_.makeBirds(scene, new THREE.Vector3(-40, ga(-40, -320), -320), 6, { h: 70, radius: 90, size: 1.1, seed: 7 }));
+    L.push(L_.makeGrass(scene, ga, { x0: -220, x1: 240, z0: -580, z1: -70 }, { count: 6000, seed: 13, skip: (x, z) => Math.hypot(x - 30, z - 260 * -1) < 8 }));
+  } else {
+    L.push(L_.makeSmoke(scene, [{ x: 22, y: 9, z: -322, scale: 0.6 }, { x: -260, y: ga(-260, -720) + 1, z: -720, scale: 1.7, dark: true }], q));
+    L.push(L_.makeBirds(scene, new THREE.Vector3(180, 13, -560), 5, { h: 60, radius: 70, size: 1.3, seed: 9, color: 0x231c18 }));
+    L.push(L_.makeGrass(scene, ga, { x0: -260, x1: 360, z0: -680, z1: -110 }, { count: 2600, dry: true, scale: 1.1, seed: 17, skip: (x, z) => (Math.abs(x) < 37 && Math.abs(z + 300) < 37) || Math.hypot(x - 180, z + 560) < 26 }));
+  }
+  for (const l of L) l.setQuality(q);
+  w.life = L;
 }

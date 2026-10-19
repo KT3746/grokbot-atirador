@@ -1,6 +1,6 @@
 // Efeitos visuais: tracante, clarao do disparo, poeira, faiscas, cartuchos, marcas
 import * as THREE from 'three';
-import { spriteTex } from './textures.js?v=1.0.0';
+import { spriteTex } from './textures.js?v=1.1.0';
 
 export class FX {
   constructor(scene) {
@@ -22,6 +22,10 @@ export class FX {
     for (let i = 0; i < 24; i++) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.06, 8), dm); d.visible = false; scene.add(d); this.decals.push(d); } this.di = 0;
     // cartuchos
     this.shells = []; const sg = new THREE.CylinderGeometry(0.008, 0.008, 0.06, 8); sg.rotateZ(Math.PI / 2); const sm = new THREE.MeshStandardMaterial({ color: 0xd4a640, metalness: 1, roughness: 0.3 });
+    // estilhacos (um unico InstancedMesh)
+    const dg = new THREE.DodecahedronGeometry(1, 0); this.debMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+    this.deb = new THREE.InstancedMesh(dg, this.debMat, 48); this.deb.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.deb.frustumCulled = false; this.deb.setColorAt(0, new THREE.Color(1, 1, 1)); this.deb.count = 0; scene.add(this.deb);
+    this.debs = []; for (let i = 0; i < 48; i++) this.debs.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3(), s: 0, life: 0, floor: 0 }); this.dbi = 0; this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._s = new THREE.Vector3(); this._c = new THREE.Color();
     for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(sg, sm); m.visible = false; scene.add(m); this.shells.push({ m, v: new THREE.Vector3(), life: 0 }); } this.si = 0;
   }
   spawn(pos, vel, { size = 0.5, grow = 1, life = 1, color = 0xffffff, opacity = 0.6, spark = false, g = 0, drag = 1.5 } = {}) {
@@ -37,6 +41,12 @@ export class FX {
     const nP = surf === 'body' ? 3 : 7;
     for (let i = 0; i < nP; i++) { const v = n.clone().multiplyScalar(1.5 + Math.random() * 2.5).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 1.8, (Math.random() - 0.5) * 2)); this.spawn(p, v, { size: 0.35 * k, grow: 2.2, life: 1.0 + Math.random() * 0.8, color: col, opacity: 0.55, drag: 2.2, g: -0.4 }); }
     if (surf === 'metal' || surf === 'stone') for (let i = 0; i < 10; i++) { const v = n.clone().multiplyScalar(4).add(new THREE.Vector3((Math.random() - 0.5) * 9, Math.random() * 6, (Math.random() - 0.5) * 9)); this.spawn(p, v, { size: 0.12 * k, grow: 0.1, life: 0.25 + Math.random() * 0.25, spark: true, g: 9.8, drag: 0.5 }); }
+    // anel de poeira rente a superficie e estilhacos
+    if (surf !== 'body' && surf !== 'metal') {
+      const t1 = new THREE.Vector3(1, 0, 0); if (Math.abs(n.x) > 0.9) t1.set(0, 0, 1); const t2 = new THREE.Vector3().crossVectors(n, t1).normalize(); t1.crossVectors(t2, n).normalize();
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const v = t1.clone().multiplyScalar(Math.cos(a) * 3.2).addScaledVector(t2, Math.sin(a) * 3.2).addScaledVector(n, 0.3); this.spawn(p.clone().addScaledVector(n, 0.1 * k), v.multiplyScalar(k * 0.6), { size: 0.3 * k, grow: 3, life: 1.4, color: col, opacity: 0.35, drag: 2.5 }); }
+    }
+    if (surf !== 'body') { const nd = surf === 'metal' ? 3 : 7; for (let i = 0; i < nd; i++) { const d = this.debs[this.dbi++ % this.debs.length]; d.p.copy(p).addScaledVector(n, 0.05); d.v.copy(n).multiplyScalar(2 + Math.random() * 3).add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3)).multiplyScalar(Math.min(2, 0.7 + k * 0.25)); d.w.set(Math.random() * 20, Math.random() * 20, Math.random() * 20); d.s = (0.03 + Math.random() * 0.05) * Math.min(3, k); d.life = 1.2 + Math.random() * 0.6; d.floor = p.y - 0.05; d.col = col; } }
     if (surf !== 'body') { const d = this.decals[this.di++ % this.decals.length]; d.visible = true; d.position.copy(p).addScaledVector(n, 0.02); d.lookAt(p.clone().add(n)); d.scale.setScalar(Math.min(4, k)); }
   }
   muzzle(pos, dir) {
@@ -58,6 +68,10 @@ export class FX {
       p.s.scale.setScalar(p.size * (1 + p.grow * k));
       if (!p.spark) p.s.material.opacity = p.opacity * (1 - k) * (1 - k);
     }
+    let nd = 0;
+    for (const d of this.debs) { if (d.life <= 0) continue; d.life -= dt; d.v.y -= 9.8 * dt; d.p.addScaledVector(d.v, dt); if (d.p.y < d.floor) { d.p.y = d.floor; d.v.multiplyScalar(0.4); d.v.y = Math.abs(d.v.y) * 0.3; }
+      d.r.x += d.w.x * dt; d.r.y += d.w.y * dt; this._q.setFromEuler(d.r); this._s.setScalar(d.s * Math.min(1, d.life * 2)); this._m.compose(d.p, this._q, this._s); this.deb.setMatrixAt(nd, this._m); this.deb.setColorAt(nd, this._c.set(d.col).multiplyScalar(0.7)); nd++; }
+    this.deb.count = nd; if (nd) { this.deb.instanceMatrix.needsUpdate = true; if (this.deb.instanceColor) this.deb.instanceColor.needsUpdate = true; }
     for (const s of this.shells) { if (s.life <= 0) continue; s.life -= dt; s.v.y -= 9.8 * dt; s.m.position.addScaledVector(s.v, dt); s.m.rotation.x += s.spin * dt; s.m.rotation.z += s.spin * 0.6 * dt; if (s.life <= 0) s.m.visible = false; }
   }
 }

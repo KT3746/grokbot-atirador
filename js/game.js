@@ -1,39 +1,77 @@
 // Nucleo do jogo: missao, mira, balistica, IA, regras, camera lenta
 import * as THREE from 'three';
-import { buildWorld, setupEnvironment } from './world.js?v=1.0.0';
-import { Actor } from './actors.js?v=1.0.0';
-import { FX } from './fx.js?v=1.0.0';
-import { sfx } from './audio.js?v=1.0.0';
-import { WEAPONS, MISSIONS } from './data.js?v=1.0.0';
-import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.0.0';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { buildWorld, setupEnvironment } from './world.js?v=1.1.0';
+import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.1.0';
+import { FX } from './fx.js?v=1.1.0';
+import { sfx } from './audio.js?v=1.1.0';
+import { WEAPONS, MISSIONS } from './data.js?v=1.1.0';
+import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.1.0';
 
 const GRAV = 9.81;
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
 
 function makeRifleModel(color) {
+  // rifle em primeira pessoa detalhado: coronha, cano, freio de boca, luneta, ferrolho animado
   const g = new THREE.Group();
-  const body = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.2 });
-  const metal = new THREE.MeshStandardMaterial({ color: 0x1a1c1f, roughness: 0.35, metalness: 0.9 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.05, metalness: 0.5, emissive: 0x0a1a2a });
-  const add = (geo, m, x, y, z, rx = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.x = rx; g.add(o); return o; };
-  add(new THREE.BoxGeometry(0.07, 0.09, 0.62), body, 0, 0, 0.05);
-  add(new THREE.BoxGeometry(0.06, 0.16, 0.26), body, 0, -0.06, 0.42);
-  add(new THREE.BoxGeometry(0.05, 0.12, 0.05), body, 0, -0.09, 0.12);
-  add(new THREE.CylinderGeometry(0.014, 0.017, 0.75, 12), metal, 0, 0.015, -0.6, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.025, 0.025, 0.08, 12), metal, 0, 0.015, -0.98, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.024, 0.024, 0.34, 20), metal, 0, 0.095, 0.02, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.034, 0.026, 0.09, 20), metal, 0, 0.095, -0.17, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.03, 0.025, 0.07, 20), metal, 0, 0.095, 0.21, Math.PI / 2);
-  add(new THREE.CircleGeometry(0.03, 20), glass, 0, 0.095, -0.216).rotation.y = Math.PI;
-  add(new THREE.TorusGeometry(0.03, 0.004, 6, 20), metal, 0, 0.095, -0.215);
-  add(new THREE.CylinderGeometry(0.012, 0.012, 0.03, 10), metal, 0.03, 0.095, 0.0, 0).rotation.z = Math.PI / 2;
-  add(new THREE.CylinderGeometry(0.012, 0.012, 0.03, 10), metal, 0, 0.125, 0.0, 0);
-  add(new THREE.BoxGeometry(0.02, 0.06, 0.03), metal, 0, 0.065, -0.05); add(new THREE.BoxGeometry(0.02, 0.06, 0.03), metal, 0, 0.065, 0.1);
-  add(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 6), metal, 0.05, 0.02, 0.12, 0).rotation.z = Math.PI / 2;
-  const bl = add(new THREE.CylinderGeometry(0.008, 0.008, 0.3, 6), metal, 0.04, -0.12, -0.45); bl.rotation.z = 0.35;
-  const br = add(new THREE.CylinderGeometry(0.008, 0.008, 0.3, 6), metal, -0.04, -0.12, -0.45); br.rotation.z = -0.35;
+  const poly = new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.05 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x1b1d20, roughness: 0.32, metalness: 0.92 });
+  const metal2 = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.45, metalness: 0.8 });
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x0e0e0e, roughness: 0.95 });
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0x0a1622, roughness: 0.02, metalness: 0.2, clearcoat: 1, emissive: 0x081a2c, emissiveIntensity: 0.6 });
+  const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, parent = g) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); parent.add(o); return o; };
+  const RB = (w, h, d, r) => new RoundedBoxGeometry(w, h, d, 2, r);
+  // coronha e chassi
+  add(RB(0.07, 0.09, 0.5, 0.02), poly, 0, -0.005, 0.06);
+  add(RB(0.06, 0.15, 0.26, 0.025), poly, 0, -0.055, 0.42, 0.06);
+  add(RB(0.05, 0.05, 0.16, 0.02), poly, 0, 0.055, 0.36);
+  add(RB(0.065, 0.17, 0.03, 0.01), rubber, 0, -0.06, 0.56, 0.06);
+  add(RB(0.045, 0.12, 0.05, 0.015), poly, 0, -0.1, 0.16, -0.35);
+  add(new THREE.TorusGeometry(0.03, 0.006, 6, 14, Math.PI), metal, 0, -0.06, 0.1, 0, Math.PI / 2, Math.PI);
+  add(RB(0.012, 0.035, 0.01, 0.004), metal, 0, -0.06, 0.1);
+  add(RB(0.05, 0.1, 0.07, 0.012), metal2, 0, -0.09, -0.02, 0.1);
+  add(RB(0.075, 0.07, 0.3, 0.012), metal2, 0, 0.012, -0.06);
+  // trilho
+  add(new THREE.BoxGeometry(0.03, 0.012, 0.32), metal, 0, 0.052, -0.04);
+  for (let i = 0; i < 12; i++) add(new THREE.BoxGeometry(0.034, 0.006, 0.012), metal, 0, 0.06, -0.19 + i * 0.026);
+  // guarda mao com furos
+  add(RB(0.062, 0.06, 0.34, 0.02), poly, 0, 0.0, -0.36);
+  for (let i = 0; i < 5; i++) add(new THREE.BoxGeometry(0.064, 0.016, 0.04), metal, 0, 0.0, -0.24 - i * 0.055);
+  // cano
+  const barrel = new THREE.CylinderGeometry(0.0125, 0.016, 0.7, 14);
+  add(barrel, metal, 0, 0.015, -0.78, Math.PI / 2);
+  for (let i = 0; i < 6; i++) add(new THREE.BoxGeometry(0.004, 0.004, 0.36), metal2, Math.cos(i) * 0.014, 0.015 + Math.sin(i) * 0.014, -0.75);
+  add(new THREE.CylinderGeometry(0.022, 0.022, 0.09, 14), metal, 0, 0.015, -1.17, Math.PI / 2);
+  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.05, 0.008, 0.012), rubber, 0, 0.015, -1.15 - i * 0.022);
+  // luneta por torno
+  const prof = [[0.0, -0.2], [0.04, -0.2], [0.042, -0.17], [0.034, -0.12], [0.025, -0.1], [0.025, 0.12], [0.03, 0.15], [0.032, 0.2], [0.0, 0.2]].map(([r, y]) => new THREE.Vector2(Math.max(0.001, r), y));
+  const scope = add(new THREE.LatheGeometry(prof, 22), metal, 0, 0.105, -0.05, -Math.PI / 2);
+  add(new THREE.CircleGeometry(0.038, 22), glass, 0, 0.105, -0.252, 0, Math.PI);
+  add(new THREE.CircleGeometry(0.029, 18), glass, 0, 0.105, 0.152);
+  add(new THREE.TorusGeometry(0.04, 0.004, 6, 22), metal2, 0, 0.105, -0.25);
+  add(new THREE.CylinderGeometry(0.014, 0.014, 0.035, 14), metal2, 0, 0.145, -0.02);
+  add(new THREE.CylinderGeometry(0.014, 0.014, 0.035, 14), metal2, 0.042, 0.105, -0.02, 0, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.009, 0.009, 0.03, 10), metal2, -0.036, 0.105, 0.04, 0, 0, Math.PI / 2);
+  for (const z of [-0.08, 0.06]) { add(new THREE.TorusGeometry(0.028, 0.006, 6, 16), metal, 0, 0.105, z); add(RB(0.02, 0.05, 0.02, 0.005), metal, 0, 0.07, z); }
+  // carregador
+  add(RB(0.045, 0.08, 0.09, 0.01), metal2, 0, -0.075, -0.12, 0.08);
+  // ferrolho animado
+  const bolt = new THREE.Group(); bolt.position.set(0.0, 0.03, 0.05); g.add(bolt);
+  add(new THREE.CylinderGeometry(0.014, 0.014, 0.14, 12), metal, 0, 0, 0, Math.PI / 2, 0, 0, bolt);
+  const handle = new THREE.Group(); bolt.add(handle); handle.position.z = 0.05;
+  add(new THREE.CylinderGeometry(0.005, 0.005, 0.07, 8), metal, 0.035, -0.012, 0, 0, 0, Math.PI / 2 + 0.4, handle);
+  add(new THREE.SphereGeometry(0.014, 12, 10), metal, 0.068, -0.026, 0, 0, 0, 0, handle);
+  // bipe
+  const bl = add(new THREE.CylinderGeometry(0.007, 0.007, 0.26, 6), metal2, 0.03, -0.12, -0.47); bl.rotation.z = 0.32; bl.rotation.x = -0.25;
+  const br = add(new THREE.CylinderGeometry(0.007, 0.007, 0.26, 6), metal2, -0.03, -0.12, -0.47); br.rotation.z = -0.32; br.rotation.x = -0.25;
+  // maos com luva
+  const glove = new THREE.MeshStandardMaterial({ color: 0x24251f, roughness: 0.9 });
+  add(new THREE.CapsuleGeometry(0.035, 0.06, 4, 10), glove, 0.0, -0.06, 0.13, 0.5, 0, 0);
+  add(new THREE.CapsuleGeometry(0.04, 0.22, 4, 10), new THREE.MeshStandardMaterial({ color: 0x3a3d33, roughness: 0.95 }), 0.04, -0.12, 0.33, -1.1, 0, 0.2);
+  add(new THREE.CapsuleGeometry(0.034, 0.07, 4, 10), glove, -0.01, -0.04, -0.33, 0.3, 0, 0.4);
   g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; } });
-  g.userData.muzzle = new THREE.Vector3(0, 0.015, -1.03);
+  g.userData.muzzle = new THREE.Vector3(0, 0.015, -1.22);
+  g.userData.bolt = bolt; g.userData.handle = handle; g.userData.ejector = new THREE.Vector3(0.04, 0.04, 0.02);
   return g;
 }
 
@@ -55,7 +93,7 @@ export class Game {
   disposeScene() {
     if (!this.scene) return;
     this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); } });
-    if (this.envInfo) this.envInfo.env.dispose();
+    if (this.envInfo) this.envInfo.env.dispose(); resetActorMaterials();
     this.scene = null; this.ui.clearMarkers();
   }
   load(mission, menuMode = false) {
@@ -63,19 +101,19 @@ export class Game {
     const scene = this.scene = new THREE.Scene();
     this.mission = mission; this.menuMode = menuMode;
     this.envInfo = setupEnvironment(scene, this.renderer, mission.sky, mission.map);
-    this.world = buildWorld(mission.map, scene, this.quality, mission.sky);
+    this.world = buildWorld(mission.map, scene, this.quality, mission.sky, this.envInfo.sunDir);
     this.fx = new FX(scene);
     scene.add(this.camera); this.camera.add(this.flashLight); this.flashLight.position.set(0.2, -0.1, -1.2);
     if (this.rifle) this.camera.remove(this.rifle);
     this.rifle = makeRifleModel(this.weapon().color); this.rifle.scale.setScalar(0.85); this.rifle.rotation.y = -0.03; this.camera.add(this.rifle);
     const r = rng(mission.id.charCodeAt(0) * 13 + mission.id.charCodeAt(1));
-    this.actors = mission.actors.map(d => { const a = new Actor(d, this.world, r); scene.add(a.root); return a; });
+    this.actors = mission.actors.map(d => { const a = new Actor(d, this.world, r); a.attach(scene); return a; });
     if (menuMode) this.actors.forEach(a => { if (a.kind === 'hostage') a.state = 'idle'; });
     const p = this.world.player; this.camera.position.copy(p.pos); this.baseYaw = p.yaw; this.yaw = p.yaw; this.pitch = p.pitch;
     this.windBase = mission.wind; this.wind = new THREE.Vector3(); this.t = 0;
     this.scoped = false; this.zoomIdx = 0; this.fov = this.baseFov; this.scopeK = 0;
     this.ammo = this.stats().mag; this.boltT = 0; this.reloadT = 0; this.breath = 1; this.shake = 0; this.holding = false; this.heartT = 0;
-    this.kick = 0; this.kickYaw = 0; this.bullets = []; this.range = 300; this.rangeT = 0; this.rangeHit = null;
+    this.kick = 0; this.kickYaw = 0; this.aimVX = 0; this.aimVY = 0; this.lagX = 0; this.lagY = 0; this.rk = 0; this.rkv = 0; this.boltAnim = -1; this.camShake = 0; this.bullets = []; this.range = 300; this.rangeT = 0; this.rangeHit = null;
     this.alertMeter = 0; this.timeLeft = mission.time; this.elapsed = 0;
     this.st = { shots: 0, hits: 0, kills: 0, heads: 0, civil: 0, optional: 0 };
     this.result = null; this.killcam = null; this.endT = 0; this.timeScale = 1;
@@ -89,6 +127,7 @@ export class Game {
     this.quality = q; if (!this.envInfo) return;
     const dir = this.envInfo.dir;
     const on = q !== 'baixa'; this.renderer.shadowMap.enabled = on; dir.castShadow = on;
+    if (this.world && this.world.life) for (const l of this.world.life) l.setQuality(q);
     const size = q === 'alta' ? 2048 : 1024;
     if (dir.shadow.mapSize.x !== size) { dir.shadow.mapSize.set(size, size); if (dir.shadow.map) { dir.shadow.map.dispose(); dir.shadow.map = null; } }
     this.camera.far = q === 'baixa' ? 1800 : q === 'media' ? 2800 : 4000; this.camera.updateProjectionMatrix();
@@ -99,7 +138,7 @@ export class Game {
   aim(dx, dy) {
     if (this.mode !== 'play') return;
     const k = (this.fov * Math.PI / 180) / innerHeight * this.save.settings.sens;
-    this.yaw -= dx * k; this.pitch -= dy * k;
+    this.yaw -= dx * k; this.pitch -= dy * k; this.aimVX += dx; this.aimVY += dy;
     this.yaw = clamp(this.yaw, this.baseYaw - 1.35, this.baseYaw + 1.35); this.pitch = clamp(this.pitch, -0.8, 0.35);
   }
   toggleScope(force) {
@@ -145,6 +184,7 @@ export class Game {
     const b = { p: origin.clone(), v, start: origin.clone(), life: 0, s, trail: [origin.clone()], alive: true, dist: 0 };
     this.bullets.push(b);
     this.kick = s.recoil * (this.scoped ? 1 : 0.6); this.kickYaw = (Math.random() - 0.5) * s.recoil * 0.4;
+    this.rkv += 9 + s.recoil * 60; this.camShake = Math.min(1, this.camShake + 0.35 + s.recoil * 4); if (s.bolt > 0.5) this.boltAnim = 0;
     this.flashT = 0.06; this.flashLight.intensity = 30;
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
     if (!this.scoped) { const mz = this.rifle.userData.muzzle.clone(); this.rifle.localToWorld(mz); this.fx.muzzle(mz, dir); this.fx.spawn(mz, dir.clone().multiplyScalar(0.5), { size: 0.5, grow: 0.5, life: 0.07, spark: true }); }
@@ -323,6 +363,7 @@ export class Game {
     this.fx.update(dt);
     for (const f of this.world.flags) f.update(this.t, this.wind);
     for (const d of this.world.drift) d.update(dt, this.wind);
+    if (this.world.life) for (const l of this.world.life) l.update(dt, this.t, this.wind, cam);
     if (this.world.fire) { const s = 1 + Math.sin(this.t * 13) * 0.15 + Math.sin(this.t * 7) * 0.1; this.world.fire.scale.set(s, 1.4 * s, s); if (Math.random() < dt * 6) this.fx.spawn(this.world.fire.position.clone().add(new THREE.Vector3(0, 0.8, 0)), new THREE.Vector3(this.wind.x * 0.3, 1.2, this.wind.z * 0.3), { size: 0.8, grow: 4, life: 3.5, color: 0x777777, opacity: 0.3, drag: 0.3 }); }
     if (this.flashT > 0) { this.flashT -= real; if (this.flashT <= 0) this.flashLight.intensity = 0; }
     // sombra segue o ponto de mira
@@ -347,14 +388,29 @@ export class Game {
     this.fov = damp(this.fov, target, 14, dt); this.scopeK = damp(this.scopeK, this.scoped ? 1 : 0, 14, dt);
     cam.fov = this.fov; cam.updateProjectionMatrix();
     this.rifle.visible = this.scopeK < 0.6;
-    this.rifle.position.set(0.2 - this.scopeK * 0.2, -0.21 + this.scopeK * 0.1 + Math.sin(this.t * 1.5) * 0.002, -0.46 + this.kick * 2);
+    // atraso da arma ao mover a mira, mola do recuo e ciclo do ferrolho
+    this.lagX = damp(this.lagX, clamp(this.aimVX * 0.0016, -0.05, 0.05), 10, dt); this.lagY = damp(this.lagY, clamp(this.aimVY * 0.0016, -0.04, 0.04), 10, dt); this.aimVX = 0; this.aimVY = 0;
+    this.rkv += (-this.rk * 220 - this.rkv * 18) * dt; this.rk += this.rkv * dt;
+    const bob = Math.sin(this.t * 1.5) * 0.002;
+    this.rifle.position.set(0.2 - this.scopeK * 0.2 - this.lagX, -0.21 + this.scopeK * 0.1 + bob + this.lagY, -0.46 + this.rk * 0.012);
+    this.rifle.rotation.set(this.rk * 0.012 + this.lagY * 1.5, -0.03 + this.lagX * 2.2, this.lagX * 1.2);
+    const ud = this.rifle.userData;
+    if (this.boltAnim >= 0) {
+      this.boltAnim += dt / Math.max(0.5, s.bolt); const b = this.boltAnim;
+      const up = b < 0.2 ? b / 0.2 : b < 0.75 ? 1 : b < 0.92 ? 1 - (b - 0.75) / 0.17 : 0;
+      const back = b < 0.2 ? 0 : b < 0.45 ? (b - 0.2) / 0.25 : b < 0.72 ? 1 - (b - 0.45) / 0.27 : 0;
+      ud.handle.rotation.z = up * 1.1; ud.bolt.position.z = 0.05 + back * 0.1;
+      if (b >= 1) { this.boltAnim = -1; ud.handle.rotation.z = 0; ud.bolt.position.z = 0.05; }
+    }
     // balanco da mira
     const t = this.t; let amp = (0.0034 * (1 - s.stab) + 0.00025) * (this.scoped ? 1 : 0.5);
     if (this.holding) amp *= 0.1; if (this.shake > 0) amp *= 2.4;
     const swx = amp * (Math.sin(t * 0.83) * 0.7 + Math.sin(t * 1.91 + 1) * 0.3);
     const swy = amp * (Math.sin(t * 1.13 + 2) * 0.6 + Math.sin(t * 0.47) * 0.4) + (this.holding ? 0 : Math.sin(t * 1.5) * amp * 0.6);
     this.kick = damp(this.kick, 0, 7, dt); this.kickYaw = damp(this.kickYaw, 0, 7, dt);
-    cam.rotation.set(this.pitch + swy + this.kick, this.yaw + swx + this.kickYaw, 0, 'YXZ');
+    this.camShake = Math.max(0, this.camShake - dt * 3.5); const cs = this.camShake * this.camShake * (this.scoped ? 0.004 : 0.012);
+    cam.rotation.set(this.pitch + swy + this.kick + (Math.random() - 0.5) * cs, this.yaw + swx + this.kickYaw + (Math.random() - 0.5) * cs, (Math.random() - 0.5) * cs * 0.5, 'YXZ');
+    RIM.uRim.value = this.scoped ? 0.58 : 0.32; RIM.uFogK.value = this.scoped ? 0.3 : 0.45;
     cam.position.copy(this.world.player.pos);
     cam.updateMatrixWorld();
     // distancia na mira (rangefinder)

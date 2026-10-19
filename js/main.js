@@ -4,13 +4,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { Game } from './game.js?v=1.0.0';
-import { UI } from './ui.js?v=1.0.0';
-import { Input } from './input.js?v=1.0.0';
-import { sfx } from './audio.js?v=1.0.0';
-import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.0.0';
-import { setAniso } from './textures.js?v=1.0.0';
+import { Game } from './game.js?v=1.1.0';
+import { UI } from './ui.js?v=1.1.0';
+import { Input } from './input.js?v=1.1.0';
+import { sfx } from './audio.js?v=1.1.0';
+import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.1.0';
+import { setAniso } from './textures.js?v=1.1.0';
+import { LIFE } from './life.js?v=1.1.0';
 
 const $ = (id) => document.getElementById(id);
 const showErr = (m) => { const e = $('err'); e.textContent = 'Erro: ' + m; e.classList.remove('hidden'); };
@@ -26,31 +26,67 @@ const store = { save: loadSave(), writeSave: (s) => writeSave(s) };
 const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 let autoQ = touch ? 'media' : 'alta'; let missionIdx = 0; let prevMode = 'play';
 
-// Pos-processamento
-const ScopeShader = {
-  uniforms: { tDiffuse: { value: null }, uK: { value: 0 }, uR: { value: 0.45 }, uAspect: { value: 1 } },
+// Pos-processamento: um passe final junta luneta, tonalizacao ACES, correcao de cor por mapa,
+// vinheta, sujeira na lente e granulado (economiza preenchimento no celular)
+function dirtTexture() {
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
+  x.fillStyle = '#000'; x.fillRect(0, 0, S, S);
+  for (let i = 0; i < 70; i++) { const px = Math.random() * S, py = Math.random() * S, r = 3 + Math.random() * 22; const g = x.createRadialGradient(px, py, 0, px, py, r); const a = 0.05 + Math.random() * 0.18; g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.7, `rgba(255,255,255,${a * 0.4})`); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(px - r, py - r, r * 2, r * 2); }
+  x.strokeStyle = 'rgba(255,255,255,0.06)'; for (let i = 0; i < 8; i++) { x.lineWidth = 1 + Math.random() * 2; x.beginPath(); const px = Math.random() * S, py = Math.random() * S; x.moveTo(px, py); x.bezierCurveTo(px + 30, py + 10, px + 50, py - 20, px + 80 * Math.random(), py + 60 * Math.random()); x.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; return t;
+}
+const GRADES = {
+  cidade: { lift: [0.0, 0.008, 0.022], gain: [1.03, 1.0, 0.97], sat: 1.06, con: 1.05 },
+  montanha: { lift: [0.004, 0.012, 0.02], gain: [0.98, 1.0, 1.03], sat: 0.95, con: 1.03 },
+  deserto: { lift: [0.022, 0.01, 0.0], gain: [1.05, 1.0, 0.92], sat: 1.08, con: 1.07 },
+  noite: { lift: [0.0, 0.012, 0.04], gain: [0.9, 0.98, 1.1], sat: 0.85, con: 1.04 },
+};
+const FinalShader = {
+  uniforms: {
+    tDiffuse: { value: null }, tDirt: { value: dirtTexture() }, uK: { value: 0 }, uR: { value: 0.45 }, uAspect: { value: 1 }, uExposure: { value: 1 }, uTime: { value: 0 },
+    uLift: { value: new THREE.Vector3() }, uGain: { value: new THREE.Vector3(1, 1, 1) }, uSat: { value: 1 }, uCon: { value: 1 }, uGrain: { value: 0.035 }, uVig: { value: 0.32 },
+    uSun: { value: new THREE.Vector2(0.5, 0.5) }, uSunVis: { value: 0 }, uDirt: { value: 1 },
+  },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uK, uR, uAspect; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse, tDirt; uniform float uK, uR, uAspect, uExposure, uTime, uSat, uCon, uGrain, uVig, uSunVis, uDirt; uniform vec3 uLift, uGain; uniform vec2 uSun; varying vec2 vUv;
+    vec3 rrtFit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
+    vec3 acesTM(vec3 c){ const mat3 I = mat3(vec3(0.59719,0.07600,0.02840), vec3(0.35458,0.90834,0.13383), vec3(0.04823,0.01566,0.83777));
+      const mat3 O = mat3(vec3(1.60475,-0.10208,-0.00327), vec3(-0.53108,1.10813,-0.07276), vec3(-0.07367,-0.00605,1.07602));
+      c *= uExposure / 0.6; c = I * c; c = rrtFit(c); c = O * c; return clamp(c, 0.0, 1.0); }
+    vec3 toSRGB(vec3 c){ return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308)))); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime * 37.0) * 43758.5453); }
     void main(){ vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0); float d = length(p);
-      float b = smoothstep(uR * 0.5, uR, d) * uK; vec3 c = vec3(0.0);
-      vec2 dir = -(vUv - 0.5) * 0.045 * b;
-      for (int i = 0; i < 8; i++) { float t = float(i) / 7.0; c.r += texture2D(tDiffuse, vUv + dir * t * 1.2).r; c.g += texture2D(tDiffuse, vUv + dir * t).g; c.b += texture2D(tDiffuse, vUv + dir * t * 0.8).b; }
-      c /= 8.0;
-      float vig = 1.0 - smoothstep(uR * 0.55, uR * 1.02, d) * 0.6 * uK - (1.0 - uK) * smoothstep(0.35, 1.0, d) * 0.4;
-      gl_FragColor = vec4(c * vig, 1.0); }`,
+      vec3 c;
+      if (uK > 0.001) {
+        float b = smoothstep(uR * 0.5, uR, d) * uK; vec2 dir = -(vUv - 0.5) * 0.045 * b; c = vec3(0.0);
+        for (int i = 0; i < 8; i++) { float t = float(i) / 7.0; c.r += texture2D(tDiffuse, vUv + dir * t * 1.2).r; c.g += texture2D(tDiffuse, vUv + dir * t).g; c.b += texture2D(tDiffuse, vUv + dir * t * 0.8).b; }
+        c /= 8.0;
+      } else c = texture2D(tDiffuse, vUv).rgb;
+      // sujeira na lente: acende perto do sol e em pontos muito claros
+      vec3 dirt = texture2D(tDirt, vUv * vec2(uAspect, 1.0) * 0.6).rgb;
+      float sd = length((vUv - uSun) * vec2(uAspect, 1.0)); float sunAmt = uSunVis * (1.0 - smoothstep(0.0, 0.6, sd));
+      float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c += dirt * (sunAmt * 0.22 + max(lum - 1.6, 0.0) * 0.1) * uDirt * vec3(1.0, 0.92, 0.8);
+      c = acesTM(c); c = toSRGB(c);
+      // correcao de cor do mapa
+      c = c * uGain + uLift * (1.0 - c); c = (c - 0.5) * uCon + 0.5; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, uSat);
+      float vig = 1.0 - smoothstep(uR * 0.55, uR * 1.02, d) * 0.6 * uK - (1.0 - uK) * smoothstep(0.3, 1.05, d) * uVig;
+      c *= vig;
+      c += (hash(vUv * 913.0) - 0.5) * uGrain;
+      gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0); }`,
 };
 const composer = new EffectComposer(renderer);
 const game = new Game(renderer, null, store);
 const renderPass = new RenderPass(new THREE.Scene(), game.camera); composer.addPass(renderPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.32, 0.5, 0.88); composer.addPass(bloom);
-const scopePass = new ShaderPass(ScopeShader); composer.addPass(scopePass);
-composer.addPass(new OutputPass());
+const scopePass = new ShaderPass(FinalShader); composer.addPass(scopePass);
+const _sv = new THREE.Vector3(), _fw = new THREE.Vector3();
 
 const app = {
   playing: () => ['play', 'killcam', 'ending'].includes(game.mode),
   currentMission: () => MISSIONS[missionIdx],
   startMission(i) {
-    missionIdx = i; requestFS();
+    missionIdx = i; requestFS(); game.mode = 'loading'; game.setHold(false);
     ui.hideScreens(); $('loading').classList.remove('hidden'); $('l-text').textContent = 'Preparando: ' + MISSIONS[i].name + '...';
     setTimeout(() => {
       try { game.quality = effQ(); game.load(MISSIONS[i]); renderPass.scene = game.scene; applyQuality(); } catch (e) { showErr(e.message); console.error(e); return; }
@@ -88,7 +124,8 @@ function applyQuality() {
   const q = effQ(); const dpr = window.devicePixelRatio || 1;
   const pr = (q === 'alta' ? Math.min(dpr, 2) : q === 'media' ? Math.min(dpr, 1.5) : 1) * (q === 'baixa' ? prScale : 1);
   renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
-  bloom.enabled = q !== 'baixa'; game.applyQuality(q);
+  bloom.enabled = q !== 'baixa'; game.applyQuality(q); LIFE.pr = pr; LIFE.height = innerHeight;
+  scopePass.uniforms.uGrain.value = q === 'alta' ? 0.035 : 0.025; scopePass.uniforms.uDirt.value = q === 'alta' ? 1 : 0.6;
   $('fps').classList.toggle('hidden', !store.save.settings.fps);
 }
 function resize() {
@@ -123,6 +160,10 @@ function frame(now) {
     const sd = Math.min(innerHeight * 0.94, innerWidth * 0.62);
     scopePass.uniforms.uK.value = game.mode === 'killcam' ? 0 : game.scopeK; scopePass.uniforms.uR.value = sd / 2 / innerHeight; scopePass.uniforms.uAspect.value = innerWidth / innerHeight;
     bloom.strength = game.mode === 'killcam' ? 0.5 : 0.32;
+    const U = scopePass.uniforms; const m = game.mission; const gr = GRADES[m && m.sky.night ? 'noite' : (m ? m.map : 'cidade')] || GRADES.cidade;
+    U.uLift.value.fromArray(gr.lift); U.uGain.value.fromArray(gr.gain); U.uSat.value = gr.sat; U.uCon.value = gr.con; U.uExposure.value = renderer.toneMappingExposure; U.uTime.value = (now % 10000) / 1000;
+    if (game.envInfo) { _sv.copy(game.envInfo.sunDir).multiplyScalar(1000).add(game.camera.position).project(game.camera); game.camera.getWorldDirection(_fw); const facing = _fw.dot(game.envInfo.sunDir);
+      U.uSun.value.set(_sv.x * 0.5 + 0.5, _sv.y * 0.5 + 0.5); U.uSunVis.value = _sv.z < 1 ? Math.max(0, (facing - 0.7) / 0.3) * (m && m.sky.night ? 0 : 1) * (1 - game.scopeK * 0.7) : 0; }
     composer.render(dt);
   }
 }
