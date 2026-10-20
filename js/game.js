@@ -358,8 +358,9 @@ export class Game {
       }
     } else {
       const surf = h.ground ? (this.world.env === 'deserto' ? 'sand' : this.world.env === 'cidade' ? 'stone' : 'dirt') : (h.object.userData.surf || 'stone');
-      const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
-      this.fx.impact(p, n, surf, scale); sfx.impact(surf === 'metal' ? 'metal' : 'ground', dist);
+      let fsurf = surf; if (!h.ground && h.object.userData.onHit) { fsurf = h.object.userData.onHit(h.instanceId, p); this.alertNear(p, 14, 10); }
+      const n = h.face ? (h.instanceId != null ? dir.clone().negate() : h.face.normal.clone().transformDirection(h.object.matrixWorld)) : new THREE.Vector3(0, 1, 0);
+      this.fx.impact(p, n, fsurf, scale); sfx.impact(fsurf === 'metal' || fsurf === 'glass' ? 'metal' : 'ground', dist);
       this.alertNear(p, 9, 18);
       this.ui.hitmark(null);
     }

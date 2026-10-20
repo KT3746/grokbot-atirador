@@ -211,23 +211,51 @@ function carGeometry() {
   return mergeGeometries(parts);
 }
 export function makeTraffic(scene, q, lanes) {
+  // transito com semaforos, fila sem bater, panico com tiros e carros que levam tiro
   const per = q === 'baixa' ? 2 : q === 'media' ? 3 : 4; const r = rng(23);
-  const cars = [];
-  lanes.forEach((L, li) => { const len = L.b - L.a; for (let k = 0; k < per; k++) cars.push({ L, s: (k + r() * 0.5) / per * len, v: L.v * (0.9 + r() * 0.2) }); });
+  const cars = []; const byLane = lanes.map(() => []);
+  lanes.forEach((L, li) => {
+    L.len = L.b - L.a; L.cross = [];
+    const xs = L.axis === 'z' ? Array.from({ length: 9 }, (_, j) => -j * 70) : Array.from({ length: 9 }, (_, i) => (i - 4) * 70);
+    for (const c of xs) { const sc = L.axis === 'z' ? (L.dir > 0 ? L.b - c : c - L.a) : (L.dir > 0 ? c - L.a : L.b - c); if (sc > 0 && sc < L.len) L.cross.push(sc); }
+    L.cross.sort((x, y) => x - y);
+    for (let k = 0; k < per; k++) { const c = { L, li, s: (k + r() * 0.4) / per * L.len, v: L.v, vmax: L.v * (0.9 + r() * 0.2), panic: 0, hit: 0, idx: cars.length }; cars.push(c); byLane[li].push(c); }
+  });
   const mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45, clearcoat: 0.8, clearcoatRoughness: 0.15 });
   const im = new THREE.InstancedMesh(carGeometry(), mat, cars.length); im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, -340), 2000);
   const pal = [0x8a1c1c, 0x1c3a6a, 0xdedede, 0x2a2a2a, 0x7a7a7a, 0x2a5a3a, 0xc8a040, 0xb0b8c0, 0x5a2a5a]; const C = new THREE.Color();
   cars.forEach((c, i) => im.setColorAt(i, C.set(pal[Math.floor(r() * pal.length)])));
   scene.add(im);
   const M = new THREE.Matrix4(), P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3(1, 1, 1), Y = new THREE.Vector3(0, 1, 0);
+  let T = 0;
+  const green = (axis) => { const ph = T % 20; return axis === 'z' ? ph < 8 : ph >= 10 && ph < 18; };
+  const place = (c) => {
+    const L = c.L; let x, z, y;
+    if (L.axis === 'z') { x = L.c; z = L.dir > 0 ? L.b - c.s : L.a + c.s; y = 0.04; } else { z = L.c; x = L.dir > 0 ? L.a + c.s : L.b - c.s; y = 0.12; }
+    const yaw = L.axis === 'z' ? (L.dir > 0 ? Math.PI : 0) : (L.dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+    P.set(x, y, z); Q.setFromAxisAngle(Y, yaw + (c.hit > 0 ? Math.sin(c.idx) * 0.08 : 0)); M.compose(P, Q, S); im.setMatrixAt(c.idx, M);
+  };
+  im.userData.surf = 'car';
+  im.userData.onHit = (id, point) => { const c = cars[id]; if (!c) return 'metal'; c.hit = 25; c.panic = 0; return point.y - (c.L.axis === 'z' ? 0.04 : 0.12) > 0.98 ? 'glass' : 'metal'; };
+  cars.forEach(place);
   return {
-    obj: im,
+    obj: im, collider: im,
+    scatter() { for (const c of cars) if (c.hit <= 0) c.panic = 10 + (c.idx % 5); },
     update(dt) {
-      cars.forEach((c, i) => {
-        const L = c.L, len = L.b - L.a; c.s = (c.s + c.v * dt) % len; const u = L.a + c.s;
-        if (L.axis === 'z') P.set(L.c, 0.04, L.dir > 0 ? L.b - c.s : u); else P.set(L.dir > 0 ? u : L.b - c.s, 0.12, L.c);
-        const yaw = L.axis === 'z' ? (L.dir > 0 ? Math.PI : 0) : (L.dir > 0 ? Math.PI / 2 : -Math.PI / 2);
-        Q.setFromAxisAngle(Y, yaw); M.compose(P, Q, S); im.setMatrixAt(i, M);
+      T += dt;
+      lanes.forEach((L, li) => {
+        const list = byLane[li]; list.sort((a, b) => a.s - b.s); const n = list.length;
+        list.forEach((c, k) => {
+          const ahead = list[(k + 1) % n]; let gap = n > 1 ? ahead.s - c.s : 1e9; if (gap <= 0) gap += L.len;
+          c.panic = Math.max(0, c.panic - dt); c.hit = Math.max(0, c.hit - dt);
+          let vmax = c.hit > 0 ? 0 : c.vmax * (c.panic > 0 ? 1.7 : 1);
+          let want = Math.min(vmax, Math.max(0, (gap - 7.5) * 1.3));
+          if (!green(L.axis)) { const sc = L.cross.find(x => x - 11.5 > c.s - 0.3); if (sc != null) { const dStop = sc - 11.5 - c.s; if (dStop < 22) want = Math.min(want, Math.max(0, dStop * 0.9)); } }
+          const acc = want > c.v ? 3.5 * (c.panic > 0 ? 1.6 : 1) : 9; c.v += Math.sign(want - c.v) * Math.min(Math.abs(want - c.v), acc * dt);
+          c.s += c.v * dt; if (c.s >= L.len) c.s -= L.len;
+          place(c);
+        });
       });
       im.instanceMatrix.needsUpdate = true;
     },

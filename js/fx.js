@@ -36,17 +36,17 @@ export class FX {
   }
   impact(p, normal, surf, distScale = 1) {
     const k = Math.max(1, distScale);
-    const col = { sand: 0xd8b888, dirt: 0x9a8668, stone: 0xb0a898, metal: 0x9aa0a8, wood: 0x8a7050, body: 0x6a6a6a }[surf] || 0xaaaaaa;
+    const col = { sand: 0xd8b888, dirt: 0x9a8668, stone: 0xb0a898, metal: 0x9aa0a8, wood: 0x8a7050, body: 0x6a6a6a, glass: 0xd8ecff }[surf] || 0xaaaaaa;
     const n = normal || new THREE.Vector3(0, 1, 0);
     const nP = surf === 'body' ? 3 : 7;
     for (let i = 0; i < nP; i++) { const v = n.clone().multiplyScalar(1.5 + Math.random() * 2.5).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 1.8, (Math.random() - 0.5) * 2)); this.spawn(p, v, { size: 0.35 * k, grow: 2.2, life: 1.0 + Math.random() * 0.8, color: col, opacity: 0.55, drag: 2.2, g: -0.4 }); }
-    if (surf === 'metal' || surf === 'stone') for (let i = 0; i < 10; i++) { const v = n.clone().multiplyScalar(4).add(new THREE.Vector3((Math.random() - 0.5) * 9, Math.random() * 6, (Math.random() - 0.5) * 9)); this.spawn(p, v, { size: 0.12 * k, grow: 0.1, life: 0.25 + Math.random() * 0.25, spark: true, g: 9.8, drag: 0.5 }); }
+    if (surf === 'metal' || surf === 'stone' || surf === 'glass') for (let i = 0; i < 10; i++) { const v = n.clone().multiplyScalar(4).add(new THREE.Vector3((Math.random() - 0.5) * 9, Math.random() * 6, (Math.random() - 0.5) * 9)); this.spawn(p, v, { size: 0.12 * k, grow: 0.1, life: 0.25 + Math.random() * 0.25, spark: true, g: 9.8, drag: 0.5 }); }
     // anel de poeira rente a superficie e estilhacos
-    if (surf !== 'body' && surf !== 'metal') {
+    if (surf !== 'body' && surf !== 'metal' && surf !== 'glass') {
       const t1 = new THREE.Vector3(1, 0, 0); if (Math.abs(n.x) > 0.9) t1.set(0, 0, 1); const t2 = new THREE.Vector3().crossVectors(n, t1).normalize(); t1.crossVectors(t2, n).normalize();
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const v = t1.clone().multiplyScalar(Math.cos(a) * 3.2).addScaledVector(t2, Math.sin(a) * 3.2).addScaledVector(n, 0.3); this.spawn(p.clone().addScaledVector(n, 0.1 * k), v.multiplyScalar(k * 0.6), { size: 0.3 * k, grow: 3, life: 1.4, color: col, opacity: 0.35, drag: 2.5 }); }
     }
-    if (surf !== 'body') { const nd = surf === 'metal' ? 3 : 7; for (let i = 0; i < nd; i++) { const d = this.debs[this.dbi++ % this.debs.length]; d.p.copy(p).addScaledVector(n, 0.05); d.v.copy(n).multiplyScalar(2 + Math.random() * 3).add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3)).multiplyScalar(Math.min(2, 0.7 + k * 0.25)); d.w.set(Math.random() * 20, Math.random() * 20, Math.random() * 20); d.s = (0.03 + Math.random() * 0.05) * Math.min(3, k); d.life = 1.2 + Math.random() * 0.6; d.floor = p.y - 0.05; d.col = col; } }
+    if (surf !== 'body') { const nd = surf === 'metal' ? 3 : surf === 'glass' ? 12 : 7; for (let i = 0; i < nd; i++) { const d = this.debs[this.dbi++ % this.debs.length]; d.p.copy(p).addScaledVector(n, 0.05); d.v.copy(n).multiplyScalar(2 + Math.random() * 3).add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3)).multiplyScalar(Math.min(2, 0.7 + k * 0.25)); d.w.set(Math.random() * 20, Math.random() * 20, Math.random() * 20); d.s = (0.03 + Math.random() * 0.05) * Math.min(3, k); d.life = 1.2 + Math.random() * 0.6; d.floor = p.y - 0.05; d.col = col; } }
     if (surf !== 'body') { const d = this.decals[this.di++ % this.decals.length]; d.visible = true; d.position.copy(p).addScaledVector(n, 0.02); d.lookAt(p.clone().add(n)); d.scale.setScalar(Math.min(4, k)); }
   }
   muzzle(pos, dir) {
