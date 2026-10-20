@@ -353,8 +353,8 @@ export class Actor {
         T.cone.getWorldDirection(T.bd); const tx = playerPos.x - T.wp.x, ty = playerPos.y - T.wp.y, tz = playerPos.z - T.wp.z, d = Math.hypot(tx, ty, tz) || 1;
         const dot = (T.bd.x * tx + T.bd.y * ty + T.bd.z * tz) / d; const k = clamp((dot - 0.86) / 0.12, 0, 1);
         const dtt = 1 / 60; if (k > 0.6 && T.k <= 0.6) T.spike = 1; T.spike = Math.max(0, T.spike - dtt * 2); T.k = k;
-        const gk = k * k * (0.7 + 0.9 * T.spike); T.gl.visible = gk > 0.02;
-        if (T.gl.visible) { T.gl.position.copy(T.wp).addScaledVector(T.bd, 0.15); T.gl.scale.setScalar(d * 0.07 * gk + 0.5); T.gl.material.opacity = Math.min(1, gk * 1.2); } } }
+        const gk = k * k * (0.5 + 1.0 * T.spike); T.gl.visible = gk > 0.02;
+        if (T.gl.visible) { T.gl.position.copy(T.wp).addScaledVector(T.bd, 0.15); T.gl.scale.setScalar(d * 0.035 * gk + 0.5); T.gl.material.opacity = Math.min(1, gk * 1.2); } } }
     if (this.glint) {
       let show = false;
       if (this.alive) { let d = this.toPlayer - (this.heading + this.head.rotation.y); while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; const f = Math.cos(d); show = f > 0.8 && Math.sin(this.t * 2.3 + this.phase) > 0.2; if (show) { this.headWorld(this.glint.position); this.glint.position.y -= 0.02; const dist = this.glint.position.distanceTo(playerPos); this.glint.scale.setScalar(dist * 0.007 * (0.6 + 0.4 * (f - 0.8) * 5) * (0.8 + 0.2 * Math.sin(this.t * 17))); } }

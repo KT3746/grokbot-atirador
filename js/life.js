@@ -313,7 +313,7 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
         const side = k ? 1 : -1; const id = c.idx * 2 + k; let o = null; let S = 0, along = 0; const axis = c.turn ? null : c.L.axis;
         if (axis) { S = Math.round(c.L.c / 70) * 70; along = (axis === 'z' ? c.z + cy * 10 : c.x + sy * 10); o = facade(axis, S, side, along); }
         if (o == null) { lights.wall.setMatrixAt(id, ZERO4); continue; }
-        const lat = Math.abs(S + side * o - (axis === 'z' ? c.x : c.z)); const I = 0.95 / (1 + (lat / 9) * (lat / 9));
+        const lat = Math.abs(S + side * o - (axis === 'z' ? c.x : c.z)); const I = 1.2 / (1 + (lat / 9) * (lat / 9));
         if (axis === 'z') { LP.set(S + side * o - side * 0.05, 0.1, along); LQ.setFromAxisAngle(Y, Math.PI / 2); } else { LP.set(along, 0.1, S + side * o - side * 0.05); LQ.identity(); }
         LS.set(11, 4.2, 1); LM.compose(LP, LQ, LS); lights.wall.setMatrixAt(id, LM); lights.wall.setColorAt(id, WC.setRGB(I, I * 0.9, I * 0.72));
       }
@@ -442,7 +442,7 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
   const pimList = Object.values(PIM);
 
   return {
-    obj: im, collider: im, colliders: [im, ...pimList], _dbgHit: () => cars.some(c => c.hit > 0), _peds: peds, _cars: cars, _doors: doors,
+    obj: im, collider: im, colliders: [im, ...pimList], _dbgHit: () => cars.some(c => c.hit > 0), _peds: peds, _cars: cars, _doors: doors, _lights: () => lights,
     scatter() { for (const c of cars) if (c.hit <= 0) c.panic = 10 + (c.idx % 5); for (const p of peds) { p.panic = 10; if (Math.hypot(p.x - LIFE.focus.x, p.z - LIFE.focus.z) < 90) startFlee(p); } },
     update(dt, t, wind, cam) {
       T += dt; const ph = phase();
