@@ -139,15 +139,18 @@ function resize() {
 window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
 // Qualidade automatica pelo FPS medido
-let fpsAcc = 0, fpsN = 0, fpsT = 0, goodWins = 0, ups = 0, lastFps = 60;
+let fpsAcc = 0, fpsN = 0, fpsT = 0, goodWins = 0, ups = 0, lastFps = 60, worst = 0, coolT = 0;
+// no celular: cai rapido abaixo de 50 fps e sobe devagar (so depois de uns 12 s bons)
 function autoTune(dt) {
-  fpsAcc += dt; fpsN++; fpsT += dt;
-  if (fpsT < 2) return;
-  const fps = fpsN / fpsAcc; lastFps = fps; fpsAcc = 0; fpsN = 0; fpsT = 0;
-  if (store.save.settings.fps) $('fps').textContent = Math.round(fps) + ' FPS  ' + effQ().toUpperCase() + '  ' + renderer.getPixelRatio().toFixed(2) + 'x';
-  if (store.save.settings.quality !== 'auto' || document.hidden) return;
-  if (fps < 45) { goodWins = 0; if (autoQ === 'alta') autoQ = 'media'; else if (autoQ === 'media') autoQ = 'baixa'; else if (prScale > 0.7) prScale -= 0.15; else return; applyQuality(); }
-  else if (fps > 58) { goodWins++; if (goodWins >= 4 && ups < 2) { goodWins = 0; if (autoQ === 'baixa' && prScale < 1) prScale = Math.min(1, prScale + 0.15); else if (autoQ === 'baixa') { autoQ = 'media'; ups++; } else if (autoQ === 'media' && !touch) { autoQ = 'alta'; ups++; } else return; applyQuality(); } }
+  fpsAcc += dt; fpsN++; fpsT += dt; worst = Math.max(worst, dt); coolT = Math.max(0, coolT - dt);
+  const win = touch ? 1.0 : 2.0; if (fpsT < win) return;
+  const fps = fpsN / fpsAcc; lastFps = fps; const low = 1 / Math.max(worst, 1e-3); fpsAcc = 0; fpsN = 0; fpsT = 0; worst = 0;
+  if (store.save.settings.fps) { const e = $('fps'); e.textContent = Math.round(fps) + ' FPS | pior ' + Math.round(Math.min(low, fps)) + ' | ' + ({ alta: 'ALTA', media: 'MÉDIA', baixa: 'BAIXA' }[effQ()] || effQ()) + (store.save.settings.quality === 'auto' ? ' (auto)' : '') + ' | ' + renderer.getPixelRatio().toFixed(2) + 'x';
+    e.className = fps >= 55 ? 'good' : fps >= 40 ? 'mid' : 'bad'; }
+  if (store.save.settings.quality !== 'auto' || document.hidden || !game.scene || game.mode === 'loading') return;
+  const lowT = touch ? 50 : 45, highT = 58, need = touch ? 12 : 4, maxUps = touch ? 1 : 2;
+  if (fps < lowT) { goodWins = 0; coolT = touch ? 25 : 10; if (autoQ === 'alta') autoQ = 'media'; else if (autoQ === 'media') autoQ = 'baixa'; else if (prScale > 0.7) prScale -= 0.15; else return; applyQuality(); }
+  else if (fps > highT && coolT <= 0) { goodWins++; if (goodWins >= need && ups < maxUps) { goodWins = 0; if (autoQ === 'baixa' && prScale < 1) prScale = Math.min(1, prScale + 0.15); else if (autoQ === 'baixa') { autoQ = 'media'; ups++; } else if (autoQ === 'media' && !touch) { autoQ = 'alta'; ups++; } else return; applyQuality(); } }
   else goodWins = 0;
 }
 

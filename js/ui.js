@@ -196,6 +196,11 @@ export class UI {
     if (g.scoped) {
       this.setText('s-zoom', zs[Math.min(g.zoomIdx, zs.length - 1)].toFixed(0) + 'x');
       this.setText('s-dist', g.rangeNone ? '--- m' : 'Distância ' + Math.round(g.range) + ' m');
+      { const cr = g.camera; const rt = (this._rt = this._rt || new THREE.Vector3()).set(1, 0, 0).applyQuaternion(cr.quaternion); rt.y = 0; rt.normalize(); const cw = g.wind.dot(rt);
+        const o = g.predictOffset(); const lat = Math.abs(o.lat); const gs = g.windBase && g.windBase.gust && g.wind.length() > g.windBase.speed * 1.35;
+        this.setText('sw-text', Math.abs(cw) < 0.3 ? 'Vento: quase nada' : 'Vento ' + Math.abs(cw).toFixed(1).replace('.', ',') + ' m/s ' + (cw > 0 ? '→' : '←') + (lat > 0.05 ? '  desvia ' + (lat < 1 ? Math.round(lat * 100) + ' cm' : lat.toFixed(1).replace('.', ',') + ' m') : ''));
+        const fl = $('sw-flag'); const k = Math.min(1, Math.abs(cw) / 8); fl.style.transform = `scaleX(${(cw >= 0 ? 1 : -1)}) skewY(${(-(1 - k) * 50).toFixed(0)}deg) scaleY(${(0.4 + 0.6 * k).toFixed(2)})`;
+        $('scope-wind').classList.toggle('gust', !!gs); }
       const ra = g.rangeHit; this.setText('s-target', ra && ra.alive ? (ra.kind === 'hostage' ? 'REFÉM! NÃO ATIRE' : ra.kind === 'civil' ? 'CIVIL! NÃO ATIRE' : ra.kind === 'hvt' ? 'ALVO PRINCIPAL' : 'INIMIGO') : '');
       const pd = $('predict');
       if (s.predict && !g.rangeNone) { const o = g.predictOffset(); const fr = g.fov * Math.PI / 180; const px = (o.lat / o.R) / fr * innerHeight; const py = (o.drop / o.R) / fr * innerHeight; pd.classList.remove('hidden'); pd.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`; }
@@ -253,14 +258,27 @@ export class UI {
       if (g.scoped) inside = !behind && Math.hypot(sx, sy) < sd * 0.9; else inside = !behind && Math.abs(x) < 0.97 && Math.abs(y) < 0.95;
       if (inside) continue;
       used.add(a); let el = this._arr.get(a); if (!el) { el = document.createElement('div'); el.className = 'arw' + (a.kind === 'hvt' ? ' hvt' : ''); el.innerHTML = '<i></i><span></span>'; box.appendChild(el); this._arr.set(a, el); }
-      const ang = Math.atan2(sy, sx); let ex, ey;
-      if (g.scoped) { ex = Math.cos(ang) * (sd - 26); ey = Math.sin(ang) * (sd - 26); }
-      else { const kx = (W / 2 - 34) / Math.max(1e-3, Math.abs(Math.cos(ang))), ky = (H / 2 - 34) / Math.max(1e-3, Math.abs(Math.sin(ang))); const k = Math.min(kx, ky); ex = Math.cos(ang) * k; ey = Math.sin(ang) * k; }
-      el.style.transform = `translate(${(W / 2 + ex).toFixed(0)}px, ${(H / 2 + ey).toFixed(0)}px) rotate(${(ang * 180 / Math.PI).toFixed(0)}deg)`;
+      const ang = Math.atan2(sy, sx); const S = this.safeRect(); let px, py;
+      if (g.scoped) { px = W / 2 + Math.cos(ang) * (sd - 26); py = H / 2 + Math.sin(ang) * (sd - 26); }
+      else { const cx = (S.l + S.r) / 2, cy = (S.t + S.b) / 2; const kx = (S.r - S.l) / 2 / Math.max(1e-3, Math.abs(Math.cos(ang))), ky = (S.b - S.t) / 2 / Math.max(1e-3, Math.abs(Math.sin(ang))); const k = Math.min(kx, ky); px = cx + Math.cos(ang) * k; py = cy + Math.sin(ang) * k; }
+      px = Math.min(S.r, Math.max(S.l, px)); py = Math.min(S.b, Math.max(S.t, py));
+      el.style.transform = `translate(${px.toFixed(0)}px, ${py.toFixed(0)}px) rotate(${(ang * 180 / Math.PI).toFixed(0)}deg)`;
       const d = Math.round(a.pos.distanceTo(cam.position)) + ' m'; const sp = el.lastChild; if (sp.textContent !== d) sp.textContent = d; sp.style.transform = `rotate(${(-ang * 180 / Math.PI).toFixed(0)}deg)`;
       el.style.display = '';
     }
     for (const [a, el] of this._arr) if (!used.has(a)) el.style.display = 'none';
+  }
+  // area livre da tela (sem botoes e paineis) para as setas
+  safeRect() {
+    const now = performance.now(); if (this._sr && now - this._srT < 1000 && this._srW === innerWidth) return this._sr;
+    const W = innerWidth, H = innerHeight; let l = 30, r = W - 30, t = 30, b = H - 30;
+    const vis = (e) => e && e.offsetParent !== null && getComputedStyle(e).display !== 'none' && !e.classList.contains('hidden');
+    for (const sel of ['.hud-tl', '.hud-tc', '.hud-wind', '#b-pause']) { const e = document.querySelector(sel); if (vis(e)) { const R = e.getBoundingClientRect(); if (R.width) t = Math.max(t, R.bottom + 24); } }
+    for (const e of document.querySelectorAll('#touch .tbtn, .hud-ammo')) { if (!vis(e)) continue; const R = e.getBoundingClientRect(); if (!R.width || R.top > H * 0.5 && R.bottom < t) continue;
+      if (R.left + R.width / 2 > W / 2) r = Math.min(r, R.left - 26); else l = Math.max(l, R.right + 26); }
+    const bh = document.querySelector('.hud-breath'); if (vis(bh)) { const R = bh.getBoundingClientRect(); if (R.width) b = Math.min(b, R.top - 18); }
+    if (r - l < 160) { const c = (l + r) / 2; l = c - 80; r = c + 80; } if (b - t < 100) { const c = (t + b) / 2; t = c - 50; b = c + 50; }
+    this._sr = { l, r, t, b }; this._srT = now; this._srW = W; return this._sr;
   }
   clearArrows() { if (this._arr) { for (const el of this._arr.values()) el.remove(); this._arr.clear(); } }
   showResult(r) {
