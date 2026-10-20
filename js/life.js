@@ -313,7 +313,7 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
         const side = k ? 1 : -1; const id = c.idx * 2 + k; let o = null; let S = 0, along = 0; const axis = c.turn ? null : c.L.axis;
         if (axis) { S = Math.round(c.L.c / 70) * 70; along = (axis === 'z' ? c.z + cy * 10 : c.x + sy * 10); o = facade(axis, S, side, along); }
         if (o == null) { lights.wall.setMatrixAt(id, ZERO4); continue; }
-        const lat = Math.abs(S + side * o - (axis === 'z' ? c.x : c.z)); const I = 0.5 / (1 + (lat / 7) * (lat / 7));
+        const lat = Math.abs(S + side * o - (axis === 'z' ? c.x : c.z)); const I = 0.95 / (1 + (lat / 9) * (lat / 9));
         if (axis === 'z') { LP.set(S + side * o - side * 0.05, 0.1, along); LQ.setFromAxisAngle(Y, Math.PI / 2); } else { LP.set(along, 0.1, S + side * o - side * 0.05); LQ.identity(); }
         LS.set(11, 4.2, 1); LM.compose(LP, LQ, LS); lights.wall.setMatrixAt(id, LM); lights.wall.setColorAt(id, WC.setRGB(I, I * 0.9, I * 0.72));
       }
@@ -442,7 +442,7 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
   const pimList = Object.values(PIM);
 
   return {
-    obj: im, collider: im, colliders: [im, ...pimList], _dbgHit: () => cars.some(c => c.hit > 0), _peds: peds, _cars: cars,
+    obj: im, collider: im, colliders: [im, ...pimList], _dbgHit: () => cars.some(c => c.hit > 0), _peds: peds, _cars: cars, _doors: doors,
     scatter() { for (const c of cars) if (c.hit <= 0) c.panic = 10 + (c.idx % 5); for (const p of peds) { p.panic = 10; if (Math.hypot(p.x - LIFE.focus.x, p.z - LIFE.focus.z) < 90) startFlee(p); } },
     update(dt, t, wind, cam) {
       T += dt; const ph = phase();
@@ -525,7 +525,7 @@ export function makePatrol(scene, q, opts = {}) {
   const geo = carGeometry(); const cars = [];
   const NG = new THREE.BufferGeometry(); const gp = new Float32Array(2 * 2 * 3), gc = new Float32Array(2 * 2 * 3); NG.setAttribute('position', new THREE.BufferAttribute(gp, 3)); NG.setAttribute('color', new THREE.BufferAttribute(gc, 3));
   const night = !!opts.night;
-  const gmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true, uniforms: { tG: { value: makeGlowTex() }, uScale: { value: 500 }, uS: { value: night ? 2.2 : 0.9 } },
+  const gmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true, uniforms: { tG: { value: makeGlowTex() }, uScale: { value: 500 }, uS: { value: night ? 1.2 : 0.7 } },
     vertexShader: 'uniform float uScale, uS; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(uS * uScale / -mv.z, 1.5, 70.0); }',
     fragmentShader: 'uniform sampler2D tG; varying vec3 vC; void main(){ float a = texture2D(tG, gl_PointCoord).r; gl_FragColor = vec4(vC * a * a * 1.8, a); }' });
   const glow = new THREE.Points(NG, gmat); glow.frustumCulled = false; scene.add(glow);
@@ -560,7 +560,7 @@ export function makePatrol(scene, q, opts = {}) {
         c.la.material.color.setRGB(A * 1.0 * 3, A * 0.63 * 3, A * 0.12 * 3); c.lb.material.color.setRGB(B * 0.16 * 3, B * 0.42 * 3, B * 3);
         c.pool.material.color.setRGB(A * 0.5 + B * 0.05, A * 0.3 + B * 0.15, A * 0.05 + B * 0.5).multiplyScalar(night ? 0.9 : 0.25);
         const s = Math.sin(c.g.rotation.y), co = Math.cos(c.g.rotation.y);
-        for (let j = 0; j < 2; j++) { const lx = j ? 0.32 : -0.32; const o = (k * 2 + j) * 3; gp[o] = c.x + co * lx + s * -0.25; gp[o + 1] = 1.66; gp[o + 2] = c.z - s * lx + co * -0.25; const on = j ? B : A; gc[o] = (j ? 0.2 : 1.0) * on; gc[o + 1] = (j ? 0.45 : 0.6) * on; gc[o + 2] = (j ? 1.0 : 0.1) * on; }
+        for (let j = 0; j < 2; j++) { const lx = j ? 0.32 : -0.32; const o = (k * 2 + j) * 3; gp[o] = c.x + co * lx + s * -0.25; gp[o + 1] = 1.66; gp[o + 2] = c.z - s * lx + co * -0.25; const on = j ? B : A; gc[o] = (j ? 0.05 : 1.0) * on; gc[o + 1] = (j ? 0.25 : 0.5) * on; gc[o + 2] = (j ? 1.0 : 0.02) * on; }
       });
       NG.attributes.position.needsUpdate = true; NG.attributes.color.needsUpdate = true; glow.visible = any;
       if (cam) gmat.uniforms.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));

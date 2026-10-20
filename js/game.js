@@ -561,9 +561,9 @@ export class Game {
     } else if (P.camMode === 2) {
       // terceira camera: do alvo, olhando para tras, a bala vindo na direcao dele
       const cam = this.camera; const root = R.nodes[0]; const tgt = root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.55, 0));
-      if (!P.back) { const s = this.world.player.pos.clone().sub(tgt).normalize(); const side = new THREE.Vector3(-s.z, 0, s.x).normalize(); P.back = { s, side, eye: tgt.clone().addScaledVector(s, -0.9).addScaledVector(side, 0.55).add(new THREE.Vector3(0, 0.22, 0)), after: tgt.clone().addScaledVector(s, 3.2).addScaledVector(side, 2.2).add(new THREE.Vector3(0, 0.5, 0)) }; }
+      if (!P.back) { const s = this.world.player.pos.clone().sub(tgt).normalize(); const side = new THREE.Vector3(-s.z, 0, s.x).normalize(); P.back = { s, side, eye: tgt.clone().addScaledVector(s, -1.7).addScaledVector(side, 0.85).add(new THREE.Vector3(0, 0.35, 0)), after: tgt.clone().addScaledVector(s, 3.2).addScaledVector(side, 2.2).add(new THREE.Vector3(0, 0.5, 0)) }; }
       const B = P.back;
-      if (f.b) { cam.position.copy(B.eye); const bp = f.b[0]; const dd = bp.distanceTo(B.eye); cam.lookAt(dd > 3 ? bp : tgt.clone().addScaledVector(B.s, 2)); cam.fov = clamp(2 * Math.atan(9 / Math.max(dd, 1)) * 180 / Math.PI, 18, 50); }
+      if (f.b) { cam.position.copy(B.eye); const bp = f.b[0]; const dd = bp.distanceTo(B.eye); cam.lookAt(dd > 3 ? bp : tgt.clone().addScaledVector(B.s, 2)); cam.fov = clamp(2 * Math.atan(12 / Math.max(dd, 1)) * 180 / Math.PI, 22, 50); }
       else { cam.position.copy(B.after); const gy = this.world.groundAt(cam.position.x, cam.position.z) + 0.5; if (cam.position.y < gy) cam.position.y = gy; cam.lookAt(root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0))); cam.fov = 45; }
       cam.updateProjectionMatrix(); cam.updateMatrixWorld();
     }
