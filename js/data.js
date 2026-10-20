@@ -1,5 +1,5 @@
 // Dados do jogo: armas, melhorias, mapas, missoes e progresso salvo
-export const VERSION = '1.4.0';
+export const VERSION = '1.5.0';
 
 export const WEAPONS = [
   { id: 'falcao', name: 'Falcão R7', desc: 'Rifle de ferrolho leve. Bom para começar.', price: 0, zooms: [8, 14], damage: 90, stability: 0.55, mag: 5, velocity: 820, bolt: 1.0, reload: 2.4, recoil: 0.035, color: 0x3b3f33 },

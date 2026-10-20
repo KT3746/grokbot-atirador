@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { clamp, damp, lerp } from './util.js?v=1.4.0';
+import { clamp, damp, lerp } from './util.js?v=1.5.0';
 
 // ---------- materiais compartilhados ----------
 export const RIM = { uRim: { value: 0.32 }, uRimColor: { value: new THREE.Color(0xfff1d8) }, uFogK: { value: 0.45 } };
@@ -51,7 +51,7 @@ let BLOB = null, GLINT = null, TORCH = null;
 function torchMats() {
   if (TORCH) return TORCH;
   const c = document.createElement('canvas'); c.width = 4; c.height = 64; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 64);
-  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.7, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = g; x.fillRect(0, 0, 4, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,0.4)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 4, 64);
   const cone = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), color: 0xfff0c8, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const c2 = document.createElement('canvas'); c2.width = c2.height = 64; const y = c2.getContext('2d'); const r = y.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.5, 'rgba(255,255,255,0.4)'); r.addColorStop(1, 'rgba(255,255,255,0)'); y.fillStyle = r; y.fillRect(0, 0, 64, 64);
   const pool = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c2), color: 0xffe8b8, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -3 });

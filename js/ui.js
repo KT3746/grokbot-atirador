@@ -1,8 +1,8 @@
 // Interface: telas, HUD, marcadores, resultados
 import * as THREE from 'three';
-import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.4.0';
-import { sfx } from './audio.js?v=1.4.0';
-import { fmtTime, fmtMoney, clamp } from './util.js?v=1.4.0';
+import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.5.0';
+import { sfx } from './audio.js?v=1.5.0';
+import { fmtTime, fmtMoney, clamp } from './util.js?v=1.5.0';
 
 const $ = (id) => document.getElementById(id);
 const ART = {
