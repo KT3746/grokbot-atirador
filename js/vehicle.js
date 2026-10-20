@@ -1,7 +1,7 @@
 // Caminhao que anda pela estrada levando um alvo na carroceria
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { clamp, damp } from './util.js?v=1.2.0';
+import { clamp, damp } from './util.js?v=1.3.0';
 
 export class Vehicle {
   constructor(def, world, scene) {

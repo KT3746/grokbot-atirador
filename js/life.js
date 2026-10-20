@@ -1,7 +1,7 @@
 // Vida no cenario: nuvens, passaros, colunas de fumaca, grama e sombra de contato barata
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { rng, fbm, clamp } from './util.js?v=1.2.0';
+import { rng, fbm, clamp } from './util.js?v=1.3.0';
 
 export const LIFE = { pr: 1, height: 800 };
 const QN = { baixa: 0, media: 1, alta: 2 };
@@ -261,4 +261,55 @@ export function makeTraffic(scene, q, lanes) {
     },
     setQuality() { },
   };
+}
+
+// ---------- estrelas (noite escura) ----------
+export function makeStars(scene, q) {
+  const n = q === 'baixa' ? 500 : 1400; const r = rng(91); const pos = new Float32Array(n * 3); const sd = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const az = r() * Math.PI * 2, el = Math.asin(0.05 + r() * 0.95); pos[i * 3] = Math.cos(el) * Math.sin(az) * 1400; pos[i * 3 + 1] = Math.sin(el) * 1400; pos[i * 3 + 2] = Math.cos(el) * Math.cos(az) * 1400; sd[i] = r(); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('sd', new THREE.BufferAttribute(sd, 1));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uT: { value: 0 }, uPR: { value: 1 } },
+    vertexShader: 'attribute float sd; uniform float uT, uPR; varying float vA; void main(){ vA = (0.25 + 0.75 * sd * sd) * (0.75 + 0.25 * sin(uT * (1.0 + sd * 3.0) + sd * 40.0)); vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = (1.0 + sd * 1.6) * uPR; }',
+    fragmentShader: 'varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float a = smoothstep(0.5, 0.1, length(d)) * vA; gl_FragColor = vec4(vec3(0.85, 0.9, 1.0) * a * 1.6, a); }' });
+  const pts = new THREE.Points(g, mat); pts.frustumCulled = false; pts.renderOrder = -9.5; scene.add(pts);
+  return { obj: pts, update(dt, t, wind, cam) { pts.position.copy(cam.position); mat.uniforms.uT.value = t; mat.uniforms.uPR.value = LIFE.pr; }, setQuality() { } };
+}
+
+// ---------- chuva: tracos em volta da camera ----------
+export function makeRain(scene, q) {
+  const N = { baixa: 800, media: 2500, alta: 6000 }; const max = N.alta; const r = rng(57);
+  const a = new Float32Array(max * 2 * 4);
+  for (let i = 0; i < max; i++) { const x = r(), y = r(), z = r(); for (let e = 0; e < 2; e++) { const o = (i * 2 + e) * 4; a[o] = x; a[o + 1] = y; a[o + 2] = z; a[o + 3] = e; } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(max * 2 * 3), 3)); g.setAttribute('a', new THREE.BufferAttribute(a, 4));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
+    uniforms: { uT: { value: 0 }, uBox: { value: new THREE.Vector3(60, 36, 60) }, uVel: { value: new THREE.Vector3(0, -15, 0) }, uCam: { value: new THREE.Vector3() }, uAlpha: { value: 1 }, uLen: { value: 0.9 } },
+    vertexShader: `attribute vec4 a; uniform float uT, uLen; uniform vec3 uBox, uVel, uCam; varying float vA;
+      void main(){ vec3 p = a.xyz * uBox + uVel * uT - uCam; p = mod(p, uBox) - uBox * 0.5; float d = length(p);
+        p += normalize(uVel) * a.w * uLen; vA = smoothstep(3.0, 9.0, d) * (1.0 - smoothstep(22.0, 30.0, d)) * (0.4 + 0.6 * a.w);
+        gl_Position = projectionMatrix * viewMatrix * vec4(uCam + p, 1.0); }`,
+    fragmentShader: 'uniform float uAlpha; varying float vA; void main(){ gl_FragColor = vec4(0.62, 0.68, 0.78, vA * uAlpha * 0.5); }' });
+  const lines = new THREE.LineSegments(g, mat); lines.frustumCulled = false; scene.add(lines);
+  const setQ = (qq) => g.setDrawRange(0, (N[qq] || N.media) * 2); setQ(q);
+  return { obj: lines, update(dt, t, wind, cam) { const u = mat.uniforms; u.uT.value = t % 600; u.uCam.value.copy(cam.position); u.uVel.value.set(wind.x * 0.7, -15, wind.z * 0.7); u.uAlpha.value = cam.fov < 20 ? 0.4 : 1; }, setQuality: setQ };
+}
+
+// ---------- tempestade de areia: graos rapidos e nuvens de poeira ----------
+export function makeSand(scene, q) {
+  const N = { baixa: 600, media: 1800, alta: 3600 }; const max = N.alta; const r = rng(63);
+  const a = new Float32Array(max * 4); for (let i = 0; i < max; i++) { a[i * 4] = r(); a[i * 4 + 1] = r(); a[i * 4 + 2] = r(); a[i * 4 + 3] = r(); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(max * 3), 3)); g.setAttribute('a', new THREE.BufferAttribute(a, 4));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
+    uniforms: { uT: { value: 0 }, uBox: { value: new THREE.Vector3(90, 26, 90) }, uVel: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() }, uScale: { value: 500 }, uAlpha: { value: 1 } },
+    vertexShader: `attribute vec4 a; uniform float uT, uScale; uniform vec3 uBox, uVel, uCam; varying float vA; varying float vBig;
+      void main(){ float big = step(0.96, a.w); vBig = big; vec3 v = uVel * (0.7 + 0.6 * a.w);
+        vec3 p = a.xyz * uBox + v * uT - uCam + vec3(0.0, 6.0, 0.0); p = mod(p, uBox) - uBox * 0.5; p.y += sin(uT * 0.7 + a.w * 30.0) * 1.2; float d = length(p);
+        vA = smoothstep(1.5, 5.0, d) * (1.0 - smoothstep(30.0, 45.0, d));
+        vec4 mv = viewMatrix * vec4(uCam + p, 1.0); gl_Position = projectionMatrix * mv;
+        float s = mix(0.05 + a.w * 0.06, 5.0, big); gl_PointSize = clamp(s * uScale / -mv.z, 1.0, mix(5.0, 260.0, big)); }`,
+    fragmentShader: `uniform float uAlpha; varying float vA; varying float vBig; void main(){ float r = length(gl_PointCoord - 0.5);
+        float a = mix(smoothstep(0.5, 0.2, r) * 0.6, smoothstep(0.5, 0.0, r) * 0.1, vBig) * vA * uAlpha; gl_FragColor = vec4(0.82, 0.62, 0.4, a); }` });
+  const pts = new THREE.Points(g, mat); pts.frustumCulled = false; scene.add(pts);
+  const setQ = (qq) => g.setDrawRange(0, N[qq] || N.media); setQ(q);
+  return { obj: pts, update(dt, t, wind, cam) { const u = mat.uniforms; u.uT.value = t % 600; u.uCam.value.copy(cam.position); u.uVel.value.set(wind.x * 2.2, 0, wind.z * 2.2);
+    u.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)); u.uAlpha.value = cam.fov < 20 ? 0.5 : 1; }, setQuality: setQ };
 }

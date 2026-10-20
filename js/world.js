@@ -1,10 +1,10 @@
 // Construcao procedural dos cenarios: cidade, montanha e deserto
 import * as THREE from 'three';
-import * as L_ from './life.js?v=1.2.0';
+import * as L_ from './life.js?v=1.3.0';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import * as T from './textures.js?v=1.2.0';
-import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.2.0';
+import * as T from './textures.js?v=1.3.0';
+import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.3.0';
 
 const std = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
 
@@ -156,13 +156,15 @@ export function setupEnvironment(scene, renderer, sp, mapId) {
   const sunCol = new THREE.Color(0xffffff).lerp(new THREE.Color(0xffa060), low);
   const dir = new THREE.DirectionalLight(sunCol, lerp(3.2, 2.0, low) * (sp.night ? 0.6 : 1)); dir.position.copy(sun).multiplyScalar(500); dir.castShadow = true;
   const sc = dir.shadow.camera; sc.near = 10; sc.far = 2000; sc.left = -150; sc.right = 150; sc.top = 150; sc.bottom = -150; dir.shadow.bias = -0.0004; dir.shadow.normalBias = 0.04;
+  if (sp.dark) { const me = 38 * Math.PI / 180, ma = (sp.azim + 150) * Math.PI / 180; dir.position.set(Math.cos(me) * Math.sin(ma), Math.sin(me), -Math.cos(me) * Math.cos(ma)).multiplyScalar(500); dir.color.set(0x9fb4e0); dir.intensity = 0.55; }
   scene.add(dir); scene.add(dir.target);
   const hemi = new THREE.HemisphereLight(sp.night ? 0x6070a0 : 0xbcd2ee, mapId === 'deserto' ? 0xb08a5a : 0x5a5040, sp.night ? 0.35 : 0.45); scene.add(hemi);
-  scene.environmentIntensity = sp.night ? 0.45 : 0.8;
+  scene.environmentIntensity = sp.dark ? 0.22 : sp.night ? 0.45 : 0.8; if (sp.dark) { hemi.intensity = 0.2; hemi.color.set(0x405080); }
   let fogC = new THREE.Color(0xb7c9da).lerp(new THREE.Color(0xd9a07a), low);
   if (sp.night) fogC.lerp(new THREE.Color(0x3a3a55), 0.5);
   if (horizon) fogC = horizon.multiplyScalar(sp.fogMul || 0.92);
   if (sp.fogTint != null) fogC.lerp(new THREE.Color(sp.fogTint), 0.35);
+  if (sp.dark) fogC = new THREE.Color(0x0c1018).lerp(fogC, 0.3);
   scene.fog = new THREE.FogExp2(fogC, sp.fog);
   return { sky, sun, dir, hemi, env, sunDir: sun.clone() };
 }
@@ -398,6 +400,9 @@ export function buildWorld(mapId, scene, quality, sp, sunDir) {
 function addLife(w, mapId, scene, q, sp, sunDir) {
   const L = []; const ga = w.groundAt;
   L.push(L_.makeClouds(scene, sp, sunDir));
+  if (sp.dark) L.push(L_.makeStars(scene, q));
+  if (sp.weather === 'rain') L.push(L_.makeRain(scene, q));
+  if (sp.weather === 'sand') L.push(L_.makeSand(scene, q));
   if (mapId === 'cidade') {
     const far = w.roofTops.filter(t => t.z < -430 && Math.abs(t.x) < 300);
     const src = [far[3], far[Math.floor(far.length * 0.6)]].filter(Boolean).map((t, i) => ({ x: t.x, y: t.y, z: t.z, scale: 1.2, dark: i === 0 }));

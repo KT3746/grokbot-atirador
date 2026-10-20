@@ -1,6 +1,6 @@
 // Texturas procedurais feitas em canvas (sem arquivos externos)
 import * as THREE from 'three';
-import { rng, fbm, noise2, clamp } from './util.js?v=1.2.0';
+import { rng, fbm, noise2, clamp } from './util.js?v=1.3.0';
 
 const cache = new Map();
 let maxAniso = 4;

@@ -1,8 +1,8 @@
 // Interface: telas, HUD, marcadores, resultados
 import * as THREE from 'three';
-import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.2.0';
-import { sfx } from './audio.js?v=1.2.0';
-import { fmtTime, fmtMoney, clamp } from './util.js?v=1.2.0';
+import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.3.0';
+import { sfx } from './audio.js?v=1.3.0';
+import { fmtTime, fmtMoney, clamp } from './util.js?v=1.3.0';
 
 const $ = (id) => document.getElementById(id);
 const ART = {
@@ -149,6 +149,8 @@ export class UI {
   showHud(v) { $('hud').classList.toggle('hidden', !v); if (!v) { $('scope').classList.add('hidden'); } }
   scope(v) { $('scope').classList.toggle('hidden', !v); $('b-zoom').classList.toggle('on', v); }
   scopeLift(v) { if (this._lift !== v) { this._lift = v; $('scope').classList.toggle('lift', v); } }
+  nv(v) { $('b-nv').classList.toggle('on', v); }
+  nvAvail(v) { $('b-nv').classList.toggle('hidden', !v); if (!v) this.nv(false); }
   binoc(v) { $('binoc').classList.toggle('hidden', !v); $('b-spot').classList.toggle('on', v); }
   clearMarkers() { $('markers').innerHTML = ''; this.markers = []; this.clearArrows(); this._leadOn = null; }
   buildMarkers(actors) {

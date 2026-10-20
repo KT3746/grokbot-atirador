@@ -1,13 +1,13 @@
 // Nucleo do jogo: missao, mira, balistica, IA, regras, camera lenta
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildWorld, setupEnvironment } from './world.js?v=1.2.0';
-import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.2.0';
-import { FX } from './fx.js?v=1.2.0';
-import { Vehicle } from './vehicle.js?v=1.2.0';
-import { sfx } from './audio.js?v=1.2.0';
-import { WEAPONS, MISSIONS } from './data.js?v=1.2.0';
-import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.2.0';
+import { buildWorld, setupEnvironment } from './world.js?v=1.3.0';
+import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.3.0';
+import { FX } from './fx.js?v=1.3.0';
+import { Vehicle } from './vehicle.js?v=1.3.0';
+import { sfx } from './audio.js?v=1.3.0';
+import { WEAPONS, MISSIONS } from './data.js?v=1.3.0';
+import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.3.0';
 
 const GRAV = 9.81;
 const BINOC_ZOOM = 9;
@@ -126,7 +126,7 @@ export class Game {
     const scene = this.scene = new THREE.Scene();
     this.mission = mission; this.menuMode = menuMode;
     this.envInfo = setupEnvironment(scene, this.renderer, mission.sky, mission.map);
-    this.world = buildWorld(mission.map, scene, this.quality, mission.sky, this.envInfo.sunDir);
+    this.world = buildWorld(mission.map, scene, this.quality, { ...mission.sky, weather: mission.weather }, this.envInfo.sunDir);
     this.fx = new FX(scene);
     scene.add(this.camera); this.camera.add(this.flashLight); this.flashLight.position.set(0.2, -0.1, -1.2);
     if (this.rifle) this.camera.remove(this.rifle);
@@ -137,7 +137,8 @@ export class Game {
     this.binoc = false; this.binK = 0; this.boltLift = 0; this.tagCount = 0; this.tagHintShown = false;
     if (menuMode) this.actors.forEach(a => { if (a.kind === 'hostage') a.state = 'idle'; });
     const p = this.world.player; this.camera.position.copy(p.pos); this.baseYaw = p.yaw; this.yaw = p.yaw; this.pitch = p.pitch;
-    this.windBase = mission.wind; this.wind = new THREE.Vector3(); this.t = 0;
+    this.windBase = mission.wind; this.wind = new THREE.Vector3(); this.t = 0; this.fogBase = scene.fog ? scene.fog.density : 0; this.gustOn = false;
+    this.nv = false; this.nvK = 0; this.ui.nvAvail(!!mission.sky.dark && !menuMode);
     this.scoped = false; this.zoomIdx = 0; this.fov = this.baseFov; this.scopeK = 0;
     this.ammo = this.stats().mag; this.boltT = 0; this.reloadT = 0; this.breath = 1; this.shake = 0; this.holding = false; this.heartT = 0;
     this.kick = 0; this.kickYaw = 0; this.aimVX = 0; this.aimVY = 0; this.lagX = 0; this.lagY = 0; this.rk = 0; this.rkv = 0; this.boltAnim = -1; this.camShake = 0; this.bullets = []; this.range = 300; this.rangeT = 0; this.rangeHit = null;
@@ -173,6 +174,12 @@ export class Game {
     this.yaw = clamp(this.yaw, this.baseYaw - 1.35, this.baseYaw + 1.35); this.pitch = clamp(this.pitch, -0.8, 0.35);
   }
   buzz(p) { if (this.save.settings.haptics === false || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (_) { } }
+  toggleNV(force) {
+    if (this.mode !== 'play' || !this.mission.sky.dark) return;
+    const v = force != null ? force : !this.nv; if (v === this.nv) return;
+    this.nv = v; sfx.zoom(); this.ui.nv(v);
+    if (v && !this.scoped && !this.binoc) this.ui.toast('Visão noturna liga na mira e no binóculo');
+  }
   toggleBinoc(force) {
     if (this.mode !== 'play') return;
     const v = force != null ? force : !this.binoc; if (v === this.binoc) return;
@@ -404,7 +411,14 @@ export class Game {
     const real = rdt; let dt = rdt * this.timeScale;
     this.t += dt;
     // vento com rajadas
-    const wb = this.windBase, gust = 1 + 0.28 * Math.sin(this.t * 0.31) * Math.sin(this.t * 0.17 + 2), dang = (wb.dir + 8 * Math.sin(this.t * 0.07)) * Math.PI / 180;
+    const wb = this.windBase; let gust = 1 + 0.28 * Math.sin(this.t * 0.31) * Math.sin(this.t * 0.17 + 2), dang = (wb.dir + 8 * Math.sin(this.t * 0.07)) * Math.PI / 180;
+    if (wb.gust) {
+      // tempestade: o vento muda de forca e de direcao
+      gust = Math.max(0.25, 1 + 0.5 * Math.sin(this.t * 0.13) + 0.3 * Math.sin(this.t * 0.37 + 1)); dang = (wb.dir + 26 * Math.sin(this.t * 0.05) + 9 * Math.sin(this.t * 0.21)) * Math.PI / 180;
+      if (this.scene.fog && this.fogBase) this.scene.fog.density = this.fogBase * (0.75 + 0.3 * gust);
+      if (this.mode === 'play' && gust > 1.55 && !this.gustOn) { this.gustOn = true; this.ui.toast('Rajada forte! Espere o vento acalmar'); } else if (gust < 1.2) this.gustOn = false;
+    }
+    sfx.setRain(this.mission.weather === 'rain' && this.mode !== 'menu' ? 1 : 0);
     const ws = wb.speed * gust; this.wind.set(Math.sin(dang) * ws, 0, -Math.cos(dang) * ws);
     sfx.setWind(ws, this.t);
     const cam = this.camera;
@@ -472,6 +486,7 @@ export class Game {
     const target = this.binoc ? this.baseFov / BINOC_ZOOM : sc ? this.baseFov / zs[Math.min(this.zoomIdx, zs.length - 1)] : this.scoped ? this.baseFov / 2.2 : this.baseFov;
     this.fov = damp(this.fov, target, 14, dt); this.scopeK = damp(this.scopeK, sc ? 1 : 0, 14, dt);
     this.binK = damp(this.binK || 0, this.binoc ? 1 : 0, 12, dt);
+    this.nvK = damp(this.nvK || 0, this.nv && (this.scopeK > 0.5 || this.binK > 0.5 || this.mode === 'killcam') ? 1 : 0, 10, dt);
     cam.fov = this.fov; cam.updateProjectionMatrix();
     this.rifle.visible = this.scopeK < 0.6 && this.binK < 0.3;
     this.updateTags(dt);

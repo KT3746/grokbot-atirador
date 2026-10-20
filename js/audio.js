@@ -95,6 +95,12 @@ export class Sfx {
     const g = c.createGain(); g.gain.value = 0; this.windGain = g; this.windF = f;
     s.connect(f); f.connect(g); g.connect(this.master); s.start();
   }
+  setRain(level) {
+    if (!this.ctx) return;
+    if (!this.rainGain) { if (!level) return; const c = this.ctx, s = this.src(1); s.loop = true; const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1400; const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 7000;
+      const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(f2); f2.connect(g); g.connect(this.master); s.start(); this.rainGain = g; }
+    const tgt = level ? 0.11 : 0; if (this.rainLvl !== tgt) { this.rainLvl = tgt; this.rainGain.gain.setTargetAtTime(tgt, this.ctx.currentTime, 0.5); }
+  }
   setWind(level, t) {
     if (!this.windGain) return;
     const gust = 0.6 + 0.4 * Math.sin(t * 0.37) * Math.sin(t * 0.13 + 1);

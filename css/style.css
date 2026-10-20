@@ -297,3 +297,7 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 .arw i { position: absolute; left: -9px; top: -9px; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 16px solid #ff5a44; filter: drop-shadow(0 0 3px #000); }
 .arw.hvt i { border-left-color: #ff9a3a; }
 .arw span { position: absolute; left: -40px; top: 10px; width: 50px; text-align: center; font-size: 10px; font-weight: 900; color: #ffb0a4; text-shadow: 0 1px 2px #000; }
+
+#b-nv { right: calc(250px + var(--safe-r)); bottom: 172px; width: 70px; height: 70px; font-size: 11px; line-height: 1.1; border-color: rgba(120, 255, 150, 0.85); }
+#b-nv.on { background: radial-gradient(circle at 35% 30%, rgba(150, 255, 170, 0.7), rgba(20, 120, 50, 0.6)); }
+@media (max-height: 480px) { #b-nv { width: 62px; height: 62px; bottom: 152px; right: calc(218px + var(--safe-r)); font-size: 10px; } }

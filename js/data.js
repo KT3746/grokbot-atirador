@@ -1,5 +1,5 @@
 // Dados do jogo: armas, melhorias, mapas, missoes e progresso salvo
-export const VERSION = '1.2.0';
+export const VERSION = '1.3.0';
 
 export const WEAPONS = [
   { id: 'falcao', name: 'Falcão R7', desc: 'Rifle de ferrolho leve. Bom para começar.', price: 0, zooms: [8, 14], damage: 90, stability: 0.55, mag: 5, velocity: 820, bolt: 1.0, reload: 2.4, recoil: 0.035, color: 0x3b3f33 },
@@ -156,6 +156,38 @@ export const MISSIONS = [
       { kind: 'merc', a: 'vila', path: [[0, -12]], pose: 'idle' },
     ],
   },
+  {
+    id: 'c4', map: 'cidade', name: 'Chuva na Madrugada', time: 240, par: 110, reward: 2400, req: 'c3',
+    sky: { elev: -6, azim: 230, turb: 2, ray: 0.6, fog: 0.0011, exposure: 0.95, night: true, dark: true },
+    weather: 'rain',
+    wind: { speed: 3.5, dir: 120 },
+    brief: 'Madrugada com chuva forte. Os Corvos Negros vão trocar uma carga na praça. Está muito escuro: use a VISÃO NOTURNA da mira (botão VISÃO ou tecla N). O Coletor é o alvo principal.',
+    goal: 'hvt', hint: 'Na mira, aperte VISÃO (ou N) para ver no escuro.',
+    actors: [
+      { kind: 'hvt', name: 'O Coletor', a: 'praca', path: [[-30, 20], [0, 6], [22, -12], [0, -24]], speed: 0.9, wait: 5, escape: [-90, -70] },
+      { kind: 'merc', a: 'praca', path: [[-27, 23], [3, 9], [25, -9]], speed: 0.9, wait: 5 },
+      { kind: 'merc', a: 'praca', path: [[18, 18]], pose: 'idle' },
+      { kind: 'merc', a: 'telhadoA', path: [[-6, -6], [6, 6]], speed: 0.9, wait: 4 },
+      { kind: 'merc', a: 'telhadoB', path: [[0, 0]], pose: 'idle' },
+      { kind: 'civil', a: 'avenida', path: [[-5, 10], [-5, -140]], speed: 1.4, wait: 1 },
+    ],
+  },
+  {
+    id: 'd4', map: 'deserto', name: 'Tempestade de Areia', time: 240, par: 120, reward: 5200, req: 'd3',
+    sky: { elev: 18, azim: 200, turb: 14, ray: 2.2, fog: 0.0019, exposure: 0.5, fogMul: 0.8, fogTint: 0xc8945a },
+    weather: 'sand',
+    wind: { speed: 7.0, dir: 100, gust: true },
+    brief: 'Uma tempestade de areia cobre a vila. O vento muda de força e de direção o tempo todo. Derrube os cinco guardas dos Corvos Negros. Espere o vento acalmar para atirar.',
+    goal: 'all', hint: 'Olhe a seta do vento: atire quando ele acalmar.',
+    actors: [
+      { kind: 'merc', a: 'vila', path: [[-12, -20], [12, -20]], speed: 0.9, wait: 3 },
+      { kind: 'merc', a: 'vila', path: [[6, -6]], pose: 'idle' },
+      { kind: 'merc', a: 'casaAlta', path: [[-3, -2], [3, 2]], speed: 0.8, wait: 4 },
+      { kind: 'merc', a: 'vila', path: [[-40, 20], [-20, 35]], speed: 1.1, wait: 2 },
+      { kind: 'merc', a: 'torre', path: [[0, 0]], pose: 'idle' },
+      { kind: 'civil', a: 'vila', path: [[-20, -35], [20, -35]], speed: 0.9, wait: 3 },
+    ],
+  },
 ];
 
 const KEY = 'atirador_elite_v1';
@@ -170,5 +202,5 @@ export function loadSave() {
 }
 export function writeSave(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { } }
 export function resetSave() { try { localStorage.removeItem(KEY); } catch (e) { } return structuredClone(DEF); }
-export function missionUnlocked(save, idx) { return idx === 0 || !!save.done[MISSIONS[idx - 1].id]; }
+export function missionUnlocked(save, idx) { const m = MISSIONS[idx]; if (m && m.req) return !!save.done[m.req]; return idx === 0 || !!save.done[MISSIONS[idx - 1].id]; }
 export function totalStars(save) { return Object.values(save.stars).reduce((a, b) => a + b, 0); }

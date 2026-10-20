@@ -4,13 +4,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { Game } from './game.js?v=1.2.0';
-import { UI } from './ui.js?v=1.2.0';
-import { Input } from './input.js?v=1.2.0';
-import { sfx } from './audio.js?v=1.2.0';
-import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.2.0';
-import { setAniso } from './textures.js?v=1.2.0';
-import { LIFE } from './life.js?v=1.2.0';
+import { Game } from './game.js?v=1.3.0';
+import { UI } from './ui.js?v=1.3.0';
+import { Input } from './input.js?v=1.3.0';
+import { sfx } from './audio.js?v=1.3.0';
+import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.3.0';
+import { setAniso } from './textures.js?v=1.3.0';
+import { LIFE } from './life.js?v=1.3.0';
 
 const $ = (id) => document.getElementById(id);
 const showErr = (m) => { const e = $('err'); e.textContent = 'Erro: ' + m; e.classList.remove('hidden'); };
@@ -45,10 +45,10 @@ const FinalShader = {
   uniforms: {
     tDiffuse: { value: null }, tDirt: { value: dirtTexture() }, uK: { value: 0 }, uR: { value: 0.45 }, uAspect: { value: 1 }, uExposure: { value: 1 }, uTime: { value: 0 },
     uLift: { value: new THREE.Vector3() }, uGain: { value: new THREE.Vector3(1, 1, 1) }, uSat: { value: 1 }, uCon: { value: 1 }, uGrain: { value: 0.035 }, uVig: { value: 0.32 },
-    uSun: { value: new THREE.Vector2(0.5, 0.5) }, uSunVis: { value: 0 }, uDirt: { value: 1 },
+    uSun: { value: new THREE.Vector2(0.5, 0.5) }, uSunVis: { value: 0 }, uDirt: { value: 1 }, uNV: { value: 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse, tDirt; uniform float uK, uR, uAspect, uExposure, uTime, uSat, uCon, uGrain, uVig, uSunVis, uDirt; uniform vec3 uLift, uGain; uniform vec2 uSun; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse, tDirt; uniform float uK, uR, uAspect, uExposure, uTime, uSat, uCon, uGrain, uVig, uSunVis, uDirt, uNV; uniform vec3 uLift, uGain; uniform vec2 uSun; varying vec2 vUv;
     vec3 rrtFit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
     vec3 acesTM(vec3 c){ const mat3 I = mat3(vec3(0.59719,0.07600,0.02840), vec3(0.35458,0.90834,0.13383), vec3(0.04823,0.01566,0.83777));
       const mat3 O = mat3(vec3(1.60475,-0.10208,-0.00327), vec3(-0.53108,1.10813,-0.07276), vec3(-0.07367,-0.00605,1.07602));
@@ -72,6 +72,10 @@ const FinalShader = {
       c = c * uGain + uLift * (1.0 - c); c = (c - 0.5) * uCon + 0.5; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, uSat);
       float vig = 1.0 - smoothstep(uR * 0.55, uR * 1.02, d) * 0.6 * uK - (1.0 - uK) * smoothstep(0.3, 1.05, d) * uVig;
       c *= vig;
+      if (uNV > 0.001) { // visao noturna: verde, ganho alto, chiado e linhas
+        float L = dot(c, vec3(0.2126, 0.7152, 0.0722)); float gg = pow(clamp(L * 5.5, 0.0, 1.0), 0.75);
+        vec3 nv = vec3(0.3, 1.0, 0.45) * (0.05 + gg * 0.95); nv *= 0.92 + 0.08 * sin(vUv.y * 1400.0); nv += (hash(vUv * 517.0) - 0.5) * 0.13;
+        nv *= vig; c = mix(c, nv, uNV); }
       c += (hash(vUv * 913.0) - 0.5) * uGrain;
       gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0); }`,
 };
@@ -100,7 +104,7 @@ const app = {
   resume(fromTut) { if (game.mode !== 'paused') return; ui.hideScreens(); game.mode = 'play'; ui.showHud(true); ui.scope(game.scoped); if (input.desktop) input.requestLock(); this.lockHint(); },
   restart() { ui.hideScreens(); $('result').classList.add('hidden'); this.startMission(missionIdx); },
   next() { if (missionIdx < MISSIONS.length - 1) this.startMission(missionIdx + 1); },
-  quit(screen = 'title') { game.binoc = false; ui.binoc(false); input.releaseLock(); ui.showHud(false); ui.hideBanner(); ui.killcam(false); game.mode = 'menu'; game.scoped = false; game.timeScale = 1; game.killcam = null; ui.clearMarkers(); ui.show(screen); },
+  quit(screen = 'title') { game.binoc = false; ui.binoc(false); game.nv = false; game.nvK = 0; ui.nv(false); sfx.setRain(0); input.releaseLock(); ui.showHud(false); ui.hideBanner(); ui.killcam(false); game.mode = 'menu'; game.scoped = false; game.timeScale = 1; game.killcam = null; ui.clearMarkers(); ui.show(screen); },
   applySettings() { sfx.setVolume(store.save.settings.vol); applyQuality(); ui.renderSettings(); },
   lockHint() { $('lockhint').classList.toggle('hidden', !(input.desktop && game.mode === 'play' && !input.locked)); },
 };
@@ -155,13 +159,13 @@ function frame(now) {
   autoTune(Math.min(raw, 1));
   if (!game.scene) return;
   const q = effQ();
-  if (q === 'baixa') renderer.render(game.scene, game.camera);
+  if (q === 'baixa' && game.nvK < 0.01) renderer.render(game.scene, game.camera);
   else {
     const sd = Math.min(innerHeight * 0.94, innerWidth * 0.62);
     scopePass.uniforms.uK.value = game.mode === 'killcam' ? 0 : game.scopeK; scopePass.uniforms.uR.value = sd / 2 / innerHeight; scopePass.uniforms.uAspect.value = innerWidth / innerHeight;
     bloom.strength = game.mode === 'killcam' ? 0.42 : 0.26;
     const U = scopePass.uniforms; const m = game.mission; const gr = GRADES[m && m.sky.night ? 'noite' : (m ? m.map : 'cidade')] || GRADES.cidade;
-    U.uLift.value.fromArray(gr.lift); U.uGain.value.fromArray(gr.gain); U.uSat.value = gr.sat; U.uCon.value = gr.con; U.uExposure.value = renderer.toneMappingExposure; U.uTime.value = (now % 10000) / 1000;
+    U.uLift.value.fromArray(gr.lift); U.uGain.value.fromArray(gr.gain); U.uSat.value = gr.sat; U.uCon.value = gr.con; U.uExposure.value = renderer.toneMappingExposure; U.uNV.value = game.nvK || 0; U.uTime.value = (now % 10000) / 1000;
     if (game.envInfo) { _sv.copy(game.envInfo.sunDir).multiplyScalar(1000).add(game.camera.position).project(game.camera); game.camera.getWorldDirection(_fw); const facing = _fw.dot(game.envInfo.sunDir);
       U.uSun.value.set(_sv.x * 0.5 + 0.5, _sv.y * 0.5 + 0.5); U.uSunVis.value = _sv.z < 1 ? Math.max(0, (facing - 0.7) / 0.3) * (m && m.sky.night ? 0 : 1) * (1 - game.scopeK * 0.7) : 0; }
     composer.render(dt);
