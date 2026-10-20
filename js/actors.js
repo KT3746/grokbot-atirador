@@ -273,7 +273,9 @@ export class Actor {
     if (!this.alive || this.ride || this.kind !== 'merc') return false;
     const st = this.state;
     if (st === 'alert' || st === 'flee' || st === 'cower' || st === 'dead') return false;
-    const sp = spot.clone(); if (why !== 'body') { sp.x += (Math.random() - 0.5) * 4; sp.z += (Math.random() - 0.5) * 4; } sp.y = this.groundY(sp.x, sp.z);
+    const sp = spot.clone(); if (why !== 'body') { sp.x += (Math.random() - 0.5) * 4; sp.z += (Math.random() - 0.5) * 4; } // no telhado anda pouco (nao sai da beirada)
+    const home = st === 'investigate' ? this.inv.homePos : this.pos; const R = this.fixedY != null && this.fixedY > 2 ? 5 : 35; const ox = sp.x - home.x, oz = sp.z - home.z, od = Math.hypot(ox, oz); if (od > R) { sp.x = home.x + ox / od * R; sp.z = home.z + oz / od * R; }
+    sp.y = this.groundY(sp.x, sp.z);
     if (st === 'investigate') { const I = this.inv; if (why === 'body' && I.why !== 'body') { I.spot = sp; I.why = why; I.phase = 'go'; I.goT = 0; } return false; }
     this.inv = { spot: sp, why, phase: 'wait', t: 0.5 + Math.random() * 1.1, goT: 0, home: st, homePos: this.pos.clone(), homeHead: this.heading };
     this.state = 'investigate'; return true;

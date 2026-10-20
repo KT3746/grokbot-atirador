@@ -405,7 +405,7 @@ export class Game {
       for (const b of bodies) {
         b.seenBy = b.seenBy || new Set(); if (b.seenBy.has(a)) continue;
         const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz) || 1; const lit = !!(b.torch && night);
-        const range = lit ? 85 : night ? 16 : 30; const dot = (dx * fx + dz * fz) / d;
+        if (Math.abs(b.pos.y - a.pos.y) > 2.5) continue; const range = lit ? 85 : night ? 16 : 30; const dot = (dx * fx + dz * fz) / d;
         if (d < range && dot > (lit ? -0.3 : 0.25)) { b.seenBy.add(a); if (a.investigate(b.pos, 'body')) msg = lit ? 'Um guarda viu a lanterna caída e vai olhar' : 'Um guarda viu um corpo e vai olhar'; break; }
       }
     }
@@ -477,7 +477,7 @@ export class Game {
       this.elapsed += dt; this.timeLeft -= dt;
       const alerted = this.actors.filter(a => a.alive && (a.state === 'alert' || a.state === 'flee') && (a.kind === 'merc' || a.kind === 'hvt')).length;
       const inv = this.actors.filter(a => a.alive && a.state === 'investigate').length;
-      this.alertMeter = clamp(this.alertMeter + (alerted ? alerted * 1.5 : inv ? inv * 0.3 : -3.5) * dt, 0, 100);
+      this.alertMeter = clamp(this.alertMeter + (alerted ? alerted * 1.5 : inv ? inv * 0.15 : -3.5) * dt, 0, 100);
       if (this.world.patrol && this.world.patrol.news) { this.world.patrol.news = false; this.ui.toast('Patrulha de segurança chegando com luzes piscando'); }
       this.lookT = (this.lookT || 0) - dt; if (this.lookT <= 0) { this.lookT = 0.4; this.lookAround(); }
       for (const a of this.actors) if (a.arrived) {
