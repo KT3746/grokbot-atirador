@@ -1,14 +1,14 @@
 // Nucleo do jogo: missao, mira, balistica, IA, regras, camera lenta
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildWorld, setupEnvironment } from './world.js?v=1.3.0';
-import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.3.0';
-import { LIFE } from './life.js?v=1.3.0';
-import { FX } from './fx.js?v=1.3.0';
-import { Vehicle } from './vehicle.js?v=1.3.0';
-import { sfx } from './audio.js?v=1.3.0';
-import { WEAPONS, MISSIONS } from './data.js?v=1.3.0';
-import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.3.0';
+import { buildWorld, setupEnvironment } from './world.js?v=1.4.0';
+import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.4.0';
+import { LIFE } from './life.js?v=1.4.0';
+import { FX } from './fx.js?v=1.4.0';
+import { Vehicle } from './vehicle.js?v=1.4.0';
+import { sfx } from './audio.js?v=1.4.0';
+import { WEAPONS, MISSIONS } from './data.js?v=1.4.0';
+import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.4.0';
 
 const GRAV = 9.81;
 const BINOC_ZOOM = 9;
