@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { buildWorld, setupEnvironment } from './world.js?v=1.3.0';
 import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.3.0';
+import { LIFE } from './life.js?v=1.3.0';
 import { FX } from './fx.js?v=1.3.0';
 import { Vehicle } from './vehicle.js?v=1.3.0';
 import { sfx } from './audio.js?v=1.3.0';
@@ -369,6 +370,7 @@ export class Game {
     } else {
       const surf = h.ground ? (this.world.env === 'deserto' ? 'sand' : this.world.env === 'cidade' ? 'stone' : 'dirt') : (h.object.userData.surf || 'stone');
       let fsurf = surf; if (!h.ground && h.object.userData.onHit) { fsurf = h.object.userData.onHit(h.instanceId, p); this.alertNear(p, 14, 10); }
+      if (fsurf === 'civil') { fsurf = 'body'; this.st.civil++; this.st.hits++; this.ui.popup('Civil atingido! Penalidade', 'bad'); sfx.fail(); this.alertNear(p, 30, 20); }
       const n = h.face ? (h.instanceId != null ? dir.clone().negate() : h.face.normal.clone().transformDirection(h.object.matrixWorld)) : new THREE.Vector3(0, 1, 0);
       this.fx.impact(p, n, fsurf, scale); sfx.impact(fsurf === 'metal' || fsurf === 'glass' ? 'metal' : 'ground', dist);
       this.alertNear(p, 9, 18);
@@ -419,7 +421,7 @@ export class Game {
     if (wb.gust) {
       // tempestade: o vento muda de forca e de direcao
       gust = Math.max(0.25, 1 + 0.5 * Math.sin(this.t * 0.13) + 0.3 * Math.sin(this.t * 0.37 + 1)); dang = (wb.dir + 26 * Math.sin(this.t * 0.05) + 9 * Math.sin(this.t * 0.21)) * Math.PI / 180;
-      if (this.scene.fog && this.fogBase) this.scene.fog.density = this.fogBase * (0.75 + 0.3 * gust);
+      if (this.scene.fog && this.fogBase) this.scene.fog.density = this.fogBase * (0.75 + 0.3 * gust) * (1 - 0.42 * (this.scopeK || 0));
       if (this.mode === 'play' && gust > 1.55 && !this.gustOn) { this.gustOn = true; this.ui.toast('Rajada forte! Espere o vento acalmar'); } else if (gust < 1.2) this.gustOn = false;
     }
     sfx.setRain(this.mission.weather === 'rain' && this.mode !== 'menu' ? 1 : 0);
@@ -462,6 +464,8 @@ export class Game {
     this.fx.update(dt);
     for (const f of this.world.flags) f.update(this.t, this.wind);
     for (const d of this.world.drift) d.update(dt, this.wind);
+    LIFE.floor.copy(this.world.player.pos); LIFE.floor.y -= 1.62;
+    { const fw = tmpV2.set(0, 0, -1).applyQuaternion(cam.quaternion); LIFE.focus.copy(cam.position).addScaledVector(fw, clamp(this.range || 100, 10, 900)); }
     if (this.world.life) for (const l of this.world.life) l.update(dt, this.t, this.wind, cam);
     if (this.world.fire) { const s = 1 + Math.sin(this.t * 13) * 0.15 + Math.sin(this.t * 7) * 0.1; this.world.fire.scale.set(s, 1.4 * s, s); if (Math.random() < dt * 6) this.fx.spawn(this.world.fire.position.clone().add(new THREE.Vector3(0, 0.8, 0)), new THREE.Vector3(this.wind.x * 0.3, 1.2, this.wind.z * 0.3), { size: 0.8, grow: 4, life: 3.5, color: 0x777777, opacity: 0.3, drag: 0.3 }); }
     if (this.flashT > 0) { this.flashT -= real; if (this.flashT <= 0) this.flashLight.intensity = 0; }
@@ -532,7 +536,7 @@ export class Game {
     const target = this.binoc ? this.baseFov / BINOC_ZOOM : sc ? this.baseFov / zs[Math.min(this.zoomIdx, zs.length - 1)] : this.scoped ? this.baseFov / 2.2 : this.baseFov;
     this.fov = damp(this.fov, target, 14, dt); this.scopeK = damp(this.scopeK, sc ? 1 : 0, 14, dt);
     this.binK = damp(this.binK || 0, this.binoc ? 1 : 0, 12, dt);
-    this.nvK = damp(this.nvK || 0, this.nv && (this.scopeK > 0.5 || this.binK > 0.5 || this.mode === 'killcam') ? 1 : 0, 10, dt);
+    { const on = this.nv && (this.scopeK > 0.5 || this.binK > 0.5 || this.mode === 'killcam'); this.nvK = damp(this.nvK || 0, on ? 1 : 0, on ? 3.2 : 10, dt); if (on && !this._nvWas) sfx.nvOn(); this._nvWas = on; }
     cam.fov = this.fov; cam.updateProjectionMatrix();
     this.rifle.visible = this.scopeK < 0.6 && this.binK < 0.3;
     this.updateTags(dt);
@@ -558,7 +562,7 @@ export class Game {
     this.kick = damp(this.kick, 0, 7, dt); this.kickYaw = damp(this.kickYaw, 0, 7, dt);
     this.camShake = Math.max(0, this.camShake - dt * 3.5); const cs = this.camShake * this.camShake * (this.scoped ? 0.004 : 0.012);
     cam.rotation.set(this.pitch + swy + this.kick + (Math.random() - 0.5) * cs, this.yaw + swx + this.kickYaw + (Math.random() - 0.5) * cs, (Math.random() - 0.5) * cs * 0.5, 'YXZ');
-    RIM.uRim.value = (this.scoped ? 0.58 : 0.22) * (1 + 1.4 * (this.nvK || 0)); RIM.uFogK.value = this.scoped ? 0.3 : 0.45;
+    RIM.uRim.value = (this.scoped ? 0.58 : 0.22) * (1 + 1.4 * (this.nvK || 0)); RIM.uFogK.value = this.scoped ? (this.windBase && this.windBase.gust ? 0.12 : 0.3) : 0.45;
     cam.position.copy(this.world.player.pos);
     cam.updateMatrixWorld();
     // distancia na mira (rangefinder)

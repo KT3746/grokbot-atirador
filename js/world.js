@@ -189,6 +189,7 @@ function buildCity(scene, q, sp) {
   for (let i = -4; i <= 4; i++) { const w = i === 0 ? 26 : 18; const g = new THREE.PlaneGeometry(w, 1100); const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) * 1100 / w); g.rotateX(-Math.PI / 2); g.translate(i * 70, 0.02, -450); roadMeshes.push(g); }
   for (let j = 0; j <= 8; j++) { const g = new THREE.PlaneGeometry(18, 700); const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) * 700 / 18); g.rotateX(-Math.PI / 2); g.rotateY(Math.PI / 2); g.translate(0, 0.1, -j * 70); roadMeshes.push(g); }
   const roads = new THREE.Mesh(mergeGeometries(roadMeshes), roadMat); roads.receiveShadow = true; scene.add(roads);
+  if (sp.weather === 'rain') { for (const m of [roadMat, mats.walk, mats.roof]) { m.roughness = 0.28; m.metalness = 0.12; m.envMapIntensity = 2.2; m.color.multiplyScalar(0.72); } }
   const anchors = {}; const plaza = { x0: -61, x1: 61, z0: -271, z1: -149 };
   const tall = { '1,4': 30, '-2,5': 38 };
   const detail = q === 'baixa' ? 0.4 : q === 'media' ? 0.7 : 1;
@@ -238,6 +239,7 @@ function buildCity(scene, q, sp) {
   instanced(lampG, std({ color: 0x3a3d40, metalness: 0.7, roughness: 0.5 }), lampPos, scene);
   const headG = new THREE.BoxGeometry(0.7, 0.18, 0.35); headG.translate(1.8, 7.8, 0);
   instanced(headG, new THREE.MeshStandardMaterial({ color: 0xfff2d0, emissive: 0xffd9a0, emissiveIntensity: night ? 6 : 0.2 }), lampPos, scene, false);
+  const lampHeads = lampPos.map(l => ({ x: l.x + (l.ry ? -1.8 : 1.8), y: 7.7, z: l.z }));
   const carG = (() => { const a = new THREE.BoxGeometry(1.9, 0.75, 4.4); a.translate(0, 0.7, 0); const b = new THREE.BoxGeometry(1.7, 0.6, 2.3); b.translate(0, 1.35, -0.2); return mergeGeometries([a, b]); })();
   const cars = []; for (let k = 0; k < 70 * detail; k++) { const onAve = r() < 0.5; const lane = onAve ? (r() < 0.5 ? -10 : 10) : (Math.floor(r() * 8) - 4) * 70 + (r() < 0.5 ? -7 : 7); let z = -40 - r() * 600; if (onAve && z < -140 && z > -280) z -= 160; if (!onAve && z < -150 && z > -275 && Math.abs(lane) < 70) continue; cars.push({ x: lane, y: 0.03, z, s: 1, ry: (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.1 }); }
   const carMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.5, clearcoat: 1, clearcoatRoughness: 0.1 });
@@ -249,7 +251,7 @@ function buildCity(scene, q, sp) {
   B.build(scene, mats, colliders, surf);
   const flags = [makeFlag(scene, anchors.telhadoA.x - 10, anchors.telhadoA.y, anchors.telhadoA.z + 10, 6), makeFlag(scene, 40, 0.15, -170, 9)];
   const groundAt = (x, z) => (x > plaza.x0 && x < plaza.x1 && z > plaza.z0 && z < plaza.z1) ? 0.15 : 0.04;
-  return { anchors, colliders, groundAt, flags, drift: [], roofTops, player: { pos: new THREE.Vector3(0, 63.5, 19.0), yaw: 0, pitch: -0.2 }, focus: new THREE.Vector3(0, 0, -230), env: 'cidade' };
+  return { anchors, colliders, groundAt, flags, drift: [], roofTops, lampHeads, player: { pos: new THREE.Vector3(0, 63.5, 19.0), yaw: 0, pitch: -0.2 }, focus: new THREE.Vector3(0, 0, -230), env: 'cidade' };
 }
 
 // ---------- MONTANHA ----------
@@ -402,6 +404,8 @@ function addLife(w, mapId, scene, q, sp, sunDir) {
   L.push(L_.makeClouds(scene, sp, sunDir));
   if (sp.dark) L.push(L_.makeStars(scene, q));
   if (sp.weather === 'rain') L.push(L_.makeRain(scene, q));
+  if (sp.weather === 'rain') L.push(L_.makeSplashes(scene, q));
+  if (sp.night && w.lampHeads) { const lg = L_.makeLampGlow(scene, w.lampHeads, sp.weather === 'rain'); if (lg) L.push(lg); }
   if (sp.weather === 'sand') L.push(L_.makeSand(scene, q));
   if (mapId === 'cidade') {
     const far = w.roofTops.filter(t => t.z < -430 && Math.abs(t.x) < 300);
@@ -412,7 +416,7 @@ function addLife(w, mapId, scene, q, sp, sunDir) {
     const lanes = [];
     for (const i of [-3, -2, -1, 1, 2, 3]) { lanes.push({ axis: 'z', c: i * 70 - 3.5, a: -760, b: 80, dir: 1, v: 9 + (i & 1) * 2 }); lanes.push({ axis: 'z', c: i * 70 + 3.5, a: -760, b: 80, dir: -1, v: 10 }); }
     for (const j of [1, 5, 6]) { lanes.push({ axis: 'x', c: -j * 70 - 3.5, a: -340, b: 340, dir: 1, v: 10 }); lanes.push({ axis: 'x', c: -j * 70 + 3.5, a: -340, b: 340, dir: -1, v: 9 }); }
-    const tr = L_.makeTraffic(scene, q, lanes); L.push(tr); w.colliders.push(tr.collider);
+    const tr = L_.makeTraffic(scene, q, lanes); L.push(tr); w.colliders.push(...tr.colliders);
     const near = w.roofTops.filter(t => t.z > -520 && t.z < -10); const ao = L_.makeBaseAO(scene, near.map(t => ({ x: t.x, z: t.z, w: t.w, d: t.d })), 0.21, 3.5); if (ao) L.push(ao);
   } else if (mapId === 'montanha') {
     const f = w.fire ? w.fire.position : new THREE.Vector3(30, 0, -255);

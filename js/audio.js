@@ -95,6 +95,7 @@ export class Sfx {
     const g = c.createGain(); g.gain.value = 0; this.windGain = g; this.windF = f;
     s.connect(f); f.connect(g); g.connect(this.master); s.start();
   }
+  nvOn() { if (!this.ctx) return; this.tone({ type: 'sine', f0: 1800, f1: 7800, peak: 0.05, a: 0.05, dec: 0.55 }); this.noiseHit({ type: 'highpass', freq: 5000, peak: 0.05, a: 0.1, dec: 0.4 }); }
   setRain(level) {
     if (!this.ctx) return;
     if (!this.rainGain) { if (!level) return; const c = this.ctx, s = this.src(1); s.loop = true; const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1400; const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 7000;
