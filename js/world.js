@@ -416,7 +416,7 @@ function addLife(w, mapId, scene, q, sp, sunDir) {
     const lanes = [];
     for (const i of [-3, -2, -1, 1, 2, 3]) { lanes.push({ axis: 'z', c: i * 70 - 3.5, a: -760, b: 80, dir: 1, v: 9 + (i & 1) * 2 }); lanes.push({ axis: 'z', c: i * 70 + 3.5, a: -760, b: 80, dir: -1, v: 10 }); }
     for (const j of [1, 5, 6]) { lanes.push({ axis: 'x', c: -j * 70 - 3.5, a: -340, b: 340, dir: 1, v: 10 }); lanes.push({ axis: 'x', c: -j * 70 + 3.5, a: -340, b: 340, dir: -1, v: 9 }); }
-    const tr = L_.makeTraffic(scene, q, lanes); L.push(tr); w.colliders.push(...tr.colliders);
+    const tr = L_.makeTraffic(scene, q, lanes, { night: !!sp.night, wet: sp.weather === 'rain' }); L.push(tr); w.colliders.push(...tr.colliders);
     const near = w.roofTops.filter(t => t.z > -520 && t.z < -10); const ao = L_.makeBaseAO(scene, near.map(t => ({ x: t.x, z: t.z, w: t.w, d: t.d })), 0.21, 3.5); if (ao) L.push(ao);
   } else if (mapId === 'montanha') {
     const f = w.fire ? w.fire.position : new THREE.Vector3(30, 0, -255);

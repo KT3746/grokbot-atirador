@@ -85,7 +85,9 @@ export function makeBirds(scene, center, count, opts = {}) {
         S.set(1, 1 + fl * 6 * glide, 1); M.compose(P, Q, S); im.setMatrixAt(i, M);
       }
       im.instanceMatrix.needsUpdate = true;
+      if (lights) { lights.lg.attributes.position.needsUpdate = true; lights.fpool.instanceMatrix.needsUpdate = true; lights.rpool.instanceMatrix.needsUpdate = true; if (cam) lights.lmat.uniforms.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)); }
     },
+    setLightScale(v) { if (lights) lights.lmat.uniforms.uScale.value = v; },
     setQuality() { },
   };
 }
@@ -252,7 +254,7 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
   scene.add(im);
   const M = new THREE.Matrix4(), P3 = new THREE.Vector3(), Q = new THREE.Quaternion(), S1 = new THREE.Vector3(1, 1, 1), Y = new THREE.Vector3(0, 1, 0);
   const baseY = (axis) => axis === 'z' ? 0.04 : 0.12;
-  const place = (c) => {
+  let place = (c) => {
     let x, z, yaw;
     if (c.turn) { const t = c.turn, u = Math.min(1, t.u), A = t.Ap, B = t.Bp, Pp = t.P; const iu = 1 - u;
       x = iu * iu * A.x + 2 * iu * u * Pp.x + u * u * B.x; z = iu * iu * A.z + 2 * iu * u * Pp.z + u * u * B.z;
@@ -263,6 +265,34 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
   };
   im.userData.surf = 'car';
   im.userData.onHit = (id, point) => { const c = cars[id]; if (!c) return 'metal'; c.hit = 25; c.panic = 0; return point.y - 0.06 > 0.98 ? 'glass' : 'metal'; };
+  // farois e lanternas a noite, com reflexo no chao (mais forte na chuva)
+  let lights = null;
+  if (opts.night) {
+    const NL = cars.length * 4; const lp = new Float32Array(NL * 3), lc = new Float32Array(NL * 3);
+    for (let i = 0; i < cars.length; i++) for (let k = 0; k < 4; k++) { const o = (i * 4 + k) * 3; const front = k < 2; lc[o] = front ? 1.0 : 1.0; lc[o + 1] = front ? 0.93 : 0.12; lc[o + 2] = front ? 0.78 : 0.08; }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.BufferAttribute(lc, 3));
+    const lmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true, uniforms: { tG: { value: makeGlowTex() }, uScale: { value: 500 } },
+      vertexShader: 'uniform float uScale; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; float s = color.g > 0.5 ? 0.9 : 0.55; gl_PointSize = clamp(s * uScale / -mv.z, 1.5, 48.0); }',
+      fragmentShader: 'uniform sampler2D tG; varying vec3 vC; void main(){ float a = texture2D(tG, gl_PointCoord).r; gl_FragColor = vec4(vC * a * a * 1.6, a); }' });
+    const lpts = new THREE.Points(lg, lmat); lpts.frustumCulled = false; scene.add(lpts);
+    const qg = new THREE.PlaneGeometry(1, 1); qg.rotateX(-Math.PI / 2);
+    const wet = !!opts.wet;
+    const fm = new THREE.MeshBasicMaterial({ map: makeGlowTex(), color: new THREE.Color(1, 0.9, 0.72).multiplyScalar(wet ? 0.55 : 0.32), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    const rm = new THREE.MeshBasicMaterial({ map: makeGlowTex(), color: new THREE.Color(1, 0.1, 0.05).multiplyScalar(wet ? 0.6 : 0.3), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    const fpool = new THREE.InstancedMesh(qg, fm, cars.length), rpool = new THREE.InstancedMesh(qg, rm, cars.length); fpool.frustumCulled = rpool.frustumCulled = false; scene.add(fpool); scene.add(rpool);
+    lights = { lp, lg, lmat, fpool, rpool, wet };
+  }
+  const LM = new THREE.Matrix4(), LQ = new THREE.Quaternion(), LS = new THREE.Vector3(), LP = new THREE.Vector3();
+  const placeLights = (c) => {
+    if (!lights) return; const sy = Math.sin(c.yaw), cy = Math.cos(c.yaw); const o = c.idx * 12; const y0 = 0.72;
+    const pts = [[0.62, 2.2], [-0.62, 2.2], [0.62, -2.18], [-0.62, -2.18]];
+    for (let k = 0; k < 4; k++) { const lx = pts[k][0], lz = pts[k][1]; lights.lp[o + k * 3] = c.x + cy * lx + sy * lz; lights.lp[o + k * 3 + 1] = y0; lights.lp[o + k * 3 + 2] = c.z - sy * lx + cy * lz; }
+    const w = lights.wet; LQ.setFromAxisAngle(Y, c.yaw);
+    LP.set(c.x + sy * (w ? 7 : 5.5), 0.08, c.z + cy * (w ? 7 : 5.5)); LS.set(3.2, 1, w ? 10 : 7); LM.compose(LP, LQ, LS); lights.fpool.setMatrixAt(c.idx, LM);
+    LP.set(c.x - sy * (w ? 3.6 : 2.8), 0.08, c.z - cy * (w ? 3.6 : 2.8)); LS.set(2.2, 1, w ? 4.5 : 2.6); LM.compose(LP, LQ, LS); lights.rpool.setMatrixAt(c.idx, LM);
+  };
+  const place0 = place;
+  place = (c) => { place0(c); placeLights(c); };
   cars.forEach(place);
 
   // ---------- pedestres nas faixas: pernas e bracos andando, fogem para os predios ----------
@@ -348,7 +378,7 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
   return {
     obj: im, collider: im, colliders: [im, ...pimList], _dbgHit: () => cars.some(c => c.hit > 0), _peds: peds, _cars: cars,
     scatter() { for (const c of cars) if (c.hit <= 0) c.panic = 10 + (c.idx % 5); for (const p of peds) { p.panic = 10; if (Math.hypot(p.x - LIFE.focus.x, p.z - LIFE.focus.z) < 90) startFlee(p); } },
-    update(dt, t) {
+    update(dt, t, wind, cam) {
       T += dt; const ph = phase();
       // pedestres
       for (const p of peds) {
