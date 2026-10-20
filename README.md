@@ -9,6 +9,17 @@ Jogue: https://kt3746.github.io/grokbot-atirador/
 - Celular: arraste para mirar, botões grandes ZOOM, ATIRAR, PRENDER RESPIRAÇÃO e RECARREGAR
 - PC: mouse com trava do ponteiro, botão direito abre a luneta, rodinha muda o zoom, Shift prende a respiração, R recarrega
 
+## Novidades da versão 1.4.0
+
+- As setas que mostram inimigos fora da tela não ficam mais em cima dos botões.
+- Ajustes, Mostrar FPS: mostra FPS, o pior momento, a qualidade e a resolução. Verde é bom, amarelo é médio, vermelho é ruim.
+- Qualidade automática mais cuidadosa no celular: baixa logo quando fica abaixo de 50 FPS e só sobe depois de um bom tempo rodando bem.
+- Chuva: ruas molhadas que brilham, respingos no chão e luz dos postes (também na visão noturna). A visão noturna liga com som e acende aos poucos.
+- Na luneta aparece o vento: força, lado, quanto a bala vai desviar e uma bandeirinha. Na tempestade avisa RAJADA. Alvos longe na areia ficam mais fáceis de ver.
+- Carros freiam devagar, fazem curvas nas esquinas e esperam os pedestres que atravessam na faixa.
+- Corrigido o clarão branco na cabeça na câmera da bala e os rostos muito claros contra o sol.
+- Botão REPLAY na tela de resultado para ver de novo o tiro final.
+
 ## Novidades da versão 1.3.0
 
 - Câmera da bala também em alvos que andam: o caminhão e os inimigos caminhando agora ganham o replay da bala.
