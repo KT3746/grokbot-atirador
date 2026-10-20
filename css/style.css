@@ -322,5 +322,13 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 #hud.kc * { visibility: hidden !important; }
 #rp-ctl { position: fixed; right: calc(14px + var(--safe-r, 0px)); top: 14px; z-index: 60; display: flex; gap: 8px; pointer-events: auto; }
 #rp-ctl.hidden { display: none; }
+#rp-bar { position: fixed; left: calc(14px + var(--safe-l, 0px)); top: 12px; z-index: 60; display: flex; align-items: center; gap: 10px; width: min(44vw, 400px); pointer-events: auto; }
+#rp-bar.hidden { display: none; }
+#rp-bar .rp-t { font-size: 11px; font-weight: 900; color: #ffd27a; letter-spacing: 1px; }
+#rp-range { flex: 1; -webkit-appearance: none; appearance: none; height: 34px; background: transparent; touch-action: none; }
+#rp-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: rgba(255, 210, 122, 0.45); }
+#rp-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -10px; border-radius: 50%; background: #ffd27a; border: 3px solid #1a1408; }
+#rp-range::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(255, 210, 122, 0.45); }
+#rp-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #ffd27a; border: 3px solid #1a1408; }
 .rpb { min-width: 74px; min-height: 44px; padding: 6px 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 210, 120, 0.7); color: #ffd27a; font-weight: 800; font-size: 13px; letter-spacing: 0.06em; }
 .rpb.on { background: rgba(255, 190, 80, 0.85); color: #1a1208; }

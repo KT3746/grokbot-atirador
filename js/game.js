@@ -545,8 +545,8 @@ export class Game {
     return true;
   }
   updateReplay(dt) {
-    const P = this.replay, R = P.rec; P.acc += dt * P.speed;
-    while (P.i < R.frames.length - 1 && P.acc >= R.frames[P.i].dt) { P.acc -= R.frames[P.i].dt; P.i++; }
+    const P = this.replay, R = P.rec; if (!P.drag) P.acc += dt * P.speed;
+    while (!P.drag && P.i < R.frames.length - 1 && P.acc >= R.frames[P.i].dt) { P.acc -= R.frames[P.i].dt; P.i++; }
     const f = R.frames[P.i]; this.applyRecFrame(f);
     if (P.camMode === 1) {
       // segunda camera: de lado da bala, depois parada perto do alvo
@@ -556,13 +556,24 @@ export class Game {
       else { if (!P.side) { const toCam = this.world.player.pos.clone().sub(tgt); toCam.y = 0; toCam.normalize(); P.side = new THREE.Vector3(-toCam.z, 0, toCam.x); }
         cam.position.copy(tgt).addScaledVector(P.side, 5.5).add(new THREE.Vector3(0, 1.2, 0)); const gy = this.world.groundAt(cam.position.x, cam.position.z) + 0.6; if (cam.position.y < gy) cam.position.y = gy; cam.lookAt(tgt); }
       cam.fov = 40; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    } else if (P.camMode === 2) {
+      // terceira camera: do alvo, olhando para tras, a bala vindo na direcao dele
+      const cam = this.camera; const root = R.nodes[0]; const tgt = root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.55, 0));
+      if (!P.back) { const s = this.world.player.pos.clone().sub(tgt).normalize(); const side = new THREE.Vector3(-s.z, 0, s.x).normalize(); P.back = { s, side, eye: tgt.clone().addScaledVector(s, -0.9).addScaledVector(side, 0.55).add(new THREE.Vector3(0, 0.22, 0)), after: tgt.clone().addScaledVector(s, 3.2).addScaledVector(side, 2.2).add(new THREE.Vector3(0, 0.5, 0)) }; }
+      const B = P.back;
+      if (f.b) { cam.position.copy(B.eye); const bp = f.b[0]; const dd = bp.distanceTo(B.eye); cam.lookAt(dd > 3 ? bp : tgt.clone().addScaledVector(B.s, 2)); cam.fov = clamp(2 * Math.atan(9 / Math.max(dd, 1)) * 180 / Math.PI, 18, 50); }
+      else { cam.position.copy(B.after); const gy = this.world.groundAt(cam.position.x, cam.position.z) + 0.5; if (cam.position.y < gy) cam.position.y = gy; cam.lookAt(root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0))); cam.fov = 45; }
+      cam.updateProjectionMatrix(); cam.updateMatrixWorld();
     }
+    this.ui.replayPos(P.i / Math.max(1, R.frames.length - 1));
     if (!P.hit && R.hitFrame >= 0 && P.i >= R.hitFrame) { P.hit = true; this.fx.impact(R.hitPoint, R.hitDir.clone().negate(), 'body', 0.35); sfx.impact('body', 100); }
     this.fx.update(dt * 0.3 * P.speed);
-    if (P.i >= R.frames.length - 1) this.stopReplay();
+    if (P.i >= R.frames.length - 1 && !P.drag) this.stopReplay();
   }
+  replayDrag(v) { if (this.replay) { this.replay.drag = !!v; this.replay.acc = 0; } }
+  replaySeek(f) { const P = this.replay; if (!P) return; const R = P.rec; P.i = clamp(Math.round(f * (R.frames.length - 1)), 0, R.frames.length - 1); P.acc = 0; P.hit = R.hitFrame >= 0 && P.i >= R.hitFrame; }
   replaySlow() { if (this.replay) { this.replay.speed = this.replay.speed < 1 ? 1 : 0.35; this.ui.replayState(this.replay); } }
-  replayCam() { if (this.replay) { this.replay.camMode = 1 - this.replay.camMode; this.replay.side = null; this.ui.replayState(this.replay); } }
+  replayCam() { if (this.replay) { this.replay.camMode = (this.replay.camMode + 1) % 3; this.replay.side = null; this.replay.back = null; this.ui.replayState(this.replay); } }
   stopReplay() {
     const P = this.replay; if (!P) return; const R = P.rec;
     R.nodes.forEach((o, i) => { o.position.fromArray(P.snap, i * 10); o.quaternion.fromArray(P.snap, i * 10 + 3); o.scale.fromArray(P.snap, i * 10 + 7); }); R.nodes[0].updateMatrixWorld(true);

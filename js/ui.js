@@ -29,6 +29,10 @@ export class UI {
     $('r-next').onclick = () => { sfx.ui(); this.app.next(); };
     $('rp-slow').onclick = (e) => { e.stopPropagation(); sfx.ui(); this.app.game.replaySlow(); };
     $('rp-cam').onclick = (e) => { e.stopPropagation(); sfx.ui(); this.app.game.replayCam(); };
+    { const rr = $('rp-range'); const G = () => this.app.game;
+      const down = (e) => { e.stopPropagation(); this.rpDrag = true; G().replayDrag(true); }; const up = (e) => { if (!this.rpDrag) return; this.rpDrag = false; G().replayDrag(false); };
+      rr.addEventListener('pointerdown', down); rr.addEventListener('touchstart', down, { passive: true }); addEventListener('pointerup', up); addEventListener('touchend', up); rr.addEventListener('change', up);
+      rr.addEventListener('input', (e) => { e.stopPropagation(); G().replaySeek(rr.value / 1000); }); }
     $('rp-skip').onclick = (e) => { e.stopPropagation(); sfx.uiBack(); this.app.game.stopReplay(); };
     $('r-replay').onclick = () => { sfx.ui(); const g = this.app.game; if (g && g.startReplay()) this.hideScreens(); };
     $('tut-ok').onclick = () => { sfx.ui(); $('tutorial').classList.add('hidden'); this.store.save.settings.tutorial = false; writeSave(this.store.save); this.app.resume(true); };
@@ -170,8 +174,9 @@ export class UI {
   popup(a, cls = 'ok', b = '') { const e = $('popup'); e.className = ''; void e.offsetWidth; e.className = 'show ' + cls; e.querySelector('.p1').textContent = a; e.querySelector('.p2').textContent = b; }
   hitmark(kill) { const e = $('hitmark'); e.className = ''; if (kill === null) return; void e.offsetWidth; e.className = kill ? 'kill' : 'hit'; }
   shotFx(scoped, bolt) { const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); if (bolt || true) { const s = $('shell'); s.classList.remove('go'); void s.offsetWidth; setTimeout(() => s.classList.add('go'), bolt ? 450 : 30); } }
-  replayState(P) { $('rp-slow').classList.toggle('on', P.speed < 1); $('rp-cam').classList.toggle('on', P.camMode === 1); $('rp-cam').textContent = P.camMode === 1 ? 'CÂMERA 2' : 'CÂMERA 1'; }
-  replay(v, dist) { if (v) this.replayState({ speed: 1, camMode: 0 }); $('hud').classList.toggle('kc', !!v); $('rp-ctl').classList.toggle('hidden', !v); $('letterbox').classList.toggle('hidden', !v); $('letterbox').classList.toggle('rp', !!v); if (v) { $('kc-dist').textContent = dist + ' m'; $('kc-lab').textContent = 'REPLAY'; } else $('kc-lab').textContent = 'TIRO FINAL'; }
+  replayState(P) { $('rp-slow').classList.toggle('on', P.speed < 1); $('rp-cam').classList.toggle('on', P.camMode > 0); $('rp-cam').textContent = 'CÂMERA ' + (P.camMode + 1); }
+  replayPos(f) { if (this.rpDrag) return; const v = String(Math.round(f * 1000)); const rr = $('rp-range'); if (rr.value !== v) rr.value = v; }
+  replay(v, dist) { if (v) this.replayState({ speed: 1, camMode: 0 }); $('hud').classList.toggle('kc', !!v); $('rp-ctl').classList.toggle('hidden', !v); $('rp-bar').classList.toggle('hidden', !v); this.rpDrag = false; $('letterbox').classList.toggle('hidden', !v); $('letterbox').classList.toggle('rp', !!v); if (v) { $('kc-dist').textContent = dist + ' m'; $('kc-lab').textContent = 'REPLAY'; } else $('kc-lab').textContent = 'TIRO FINAL'; }
   killcam(v, dist) { $('hud').classList.toggle('kc', !!v); $('letterbox').classList.toggle('hidden', !v); if (v) { $('kc-dist').textContent = dist + ' m'; $('scope').classList.add('hidden'); } }
   banner(t, win) { const b = $('banner'); b.textContent = t; b.className = win ? 'win' : 'lose'; }
   hideBanner() { $('banner').className = 'hidden'; }

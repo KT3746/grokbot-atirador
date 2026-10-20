@@ -56,7 +56,13 @@ function torchMats() {
   const c2 = document.createElement('canvas'); c2.width = c2.height = 64; const y = c2.getContext('2d'); const r = y.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.5, 'rgba(255,255,255,0.4)'); r.addColorStop(1, 'rgba(255,255,255,0)'); y.fillStyle = r; y.fillRect(0, 0, 64, 64);
   const pool = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c2), color: 0xffe8b8, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -3 });
   const lens = new THREE.MeshBasicMaterial({ color: 0xffffff }); lens.color.setScalar(4);
-  TORCH = { cone, pool, lens, coneG: (() => { const g = new THREE.ConeGeometry(2.0, 13, 18, 1, true); g.translate(0, -6.5, 0); g.rotateX(-Math.PI / 2); return g; })(), poolG: (() => { const g = new THREE.PlaneGeometry(1, 1); g.rotateX(-Math.PI / 2); return g; })() };
+  // facho "volumetrico": brilha mais no meio e some nas bordas e no fim, visivel de lado
+  const beam = (I, L) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    uniforms: { uI: { value: I }, uC: { value: new THREE.Color(0xfff0cc) }, uL: { value: L } },
+    vertexShader: 'uniform float uL; varying float vA; varying vec3 vN; varying vec3 vV; void main(){ vA = position.z / uL; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; vN = normalMatrix * normal; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform float uI; uniform vec3 uC; varying float vA; varying vec3 vN; varying vec3 vV; void main(){ float e = abs(dot(normalize(vN), normalize(vV))); e = e * e; float f = 1.0 - clamp(vA, 0.0, 1.0); f = f * f * smoothstep(0.0, 0.06, vA); float a = uI * e * f; gl_FragColor = vec4(uC * a, a); }' });
+  const glare = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c2), color: 0xfff2d8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+  TORCH = { cone: beam(0.55, 16), core: beam(0.5, 9), glare, pool, lens, coreG: (() => { const g = new THREE.ConeGeometry(0.8, 9, 14, 1, true); g.translate(0, -4.5, 0); g.rotateX(-Math.PI / 2); return g; })(), coneG: (() => { const g = new THREE.ConeGeometry(3.4, 16, 20, 1, true); g.translate(0, -8, 0); g.rotateX(-Math.PI / 2); return g; })(), poolG: (() => { const g = new THREE.PlaneGeometry(1, 1); g.rotateX(-Math.PI / 2); return g; })() };
   return TORCH;
 }
 function blobMat() {
@@ -245,8 +251,10 @@ export class Actor {
     const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), T.lens); lens.rotation.x = Math.PI / 2; g.add(lens);
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.16, 8), new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.5 })); body.rotation.x = Math.PI / 2; body.position.z = -0.09; g.add(body);
     const cone = new THREE.Mesh(T.coneG, T.cone); cone.rotation.x = 0.2; cone.renderOrder = 2; g.add(cone);
-    const pool = new THREE.Mesh(T.poolG, T.pool); pool.scale.set(4.5, 1, 6); scene.add(pool);
-    this.torch = { g, cone, pool, lens, wp: new THREE.Vector3(), fw: new THREE.Vector3() };
+    const core = new THREE.Mesh(T.coreG, T.core); core.renderOrder = 2; cone.add(core);
+    const pool = new THREE.Mesh(T.poolG, T.pool); pool.scale.set(5.5, 1, 7); scene.add(pool);
+    const gl = new THREE.Sprite(T.glare.clone()); gl.renderOrder = 3; gl.visible = false; scene.add(gl);
+    this.torch = { g, cone, pool, lens, gl, k: 0, spike: 0, wp: new THREE.Vector3(), fw: new THREE.Vector3(), bd: new THREE.Vector3() };
   }
   get pos() { return this.root.position; }
   headWorld(v) { return this.head.getWorldPosition(v).add(V1.set(0, 0.1, 0)); }
@@ -333,9 +341,17 @@ export class Actor {
   }
   syncExtras(playerPos) {
     const p = this.root.position; this.blob.position.set(p.x, this.groundY(p.x, p.z) + this.blobY, p.z);
-    if (this.torch) { const T = this.torch; const on = this.alive; T.cone.visible = on; T.pool.visible = on; T.lens.visible = on;
+    if (this.torch && !this.alive) { const T = this.torch; T.cone.visible = false; T.gl.visible = false;
+      if (!T.down) { T.down = true; T.fw.set(Math.sin(this.heading), 0, Math.cos(this.heading)); const px = p.x + T.fw.x * 2.2, pz = p.z + T.fw.z * 2.2; T.pool.position.set(px, this.groundY(px, pz) + 0.06, pz); T.pool.scale.set(2.4, 1, 3.4); T.pool.rotation.y = this.heading; } }
+    if (this.torch && this.alive) { const T = this.torch; const on = true; T.cone.visible = on; T.pool.visible = on; T.lens.visible = on;
       if (on) { T.g.getWorldPosition(T.wp); T.fw.set(0, 0, 1).applyQuaternion(this.root.quaternion); T.fw.y = 0; T.fw.normalize(); const sw = Math.sin(performance.now() * 0.0007 + this.r0) * 0.25; T.g.rotation.y = sw;
-        const ang = Math.atan2(T.fw.x, T.fw.z) + sw; const px = T.wp.x + Math.sin(ang) * 7, pz = T.wp.z + Math.cos(ang) * 7; T.pool.position.set(px, this.groundY(px, pz) + 0.06, pz); T.pool.rotation.y = ang; } }
+        const ang = Math.atan2(T.fw.x, T.fw.z) + sw; const px = T.wp.x + Math.sin(ang) * 7, pz = T.wp.z + Math.cos(ang) * 7; T.pool.position.set(px, this.groundY(px, pz) + 0.06, pz); T.pool.rotation.y = ang;
+        // brilho forte quando a lanterna aponta para a camera (com um pico curto)
+        T.cone.getWorldDirection(T.bd); const tx = playerPos.x - T.wp.x, ty = playerPos.y - T.wp.y, tz = playerPos.z - T.wp.z, d = Math.hypot(tx, ty, tz) || 1;
+        const dot = (T.bd.x * tx + T.bd.y * ty + T.bd.z * tz) / d; const k = clamp((dot - 0.86) / 0.12, 0, 1);
+        const dtt = 1 / 60; if (k > 0.6 && T.k <= 0.6) T.spike = 1; T.spike = Math.max(0, T.spike - dtt * 2); T.k = k;
+        const gk = k * k * (0.7 + 0.9 * T.spike); T.gl.visible = gk > 0.02;
+        if (T.gl.visible) { T.gl.position.copy(T.wp).addScaledVector(T.bd, 0.15); T.gl.scale.setScalar(d * 0.03 * gk + 0.4); T.gl.material.opacity = Math.min(1, gk * 1.2); } } }
     if (this.glint) {
       let show = false;
       if (this.alive) { let d = this.toPlayer - (this.heading + this.head.rotation.y); while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; const f = Math.cos(d); show = f > 0.8 && Math.sin(this.t * 2.3 + this.phase) > 0.2; if (show) { this.headWorld(this.glint.position); this.glint.position.y -= 0.02; const dist = this.glint.position.distanceTo(playerPos); this.glint.scale.setScalar(dist * 0.007 * (0.6 + 0.4 * (f - 0.8) * 5) * (0.8 + 0.2 * Math.sin(this.t * 17))); } }
