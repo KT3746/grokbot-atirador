@@ -172,6 +172,7 @@ export class Game {
     this.yaw -= dx * k; this.pitch -= dy * k; this.aimVX += dx; this.aimVY += dy;
     this.yaw = clamp(this.yaw, this.baseYaw - 1.35, this.baseYaw + 1.35); this.pitch = clamp(this.pitch, -0.8, 0.35);
   }
+  buzz(p) { if (this.save.settings.haptics === false || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (_) { } }
   toggleBinoc(force) {
     if (this.mode !== 'play') return;
     const v = force != null ? force : !this.binoc; if (v === this.binoc) return;
@@ -224,7 +225,7 @@ export class Game {
     const s = this.stats();
     if (this.reloadT > 0 || this.boltT > 0) return;
     if (this.ammo <= 0) { sfx.empty(); this.reload(); return; }
-    this.ammo--; this.st.shots++; this.boltT = s.bolt;
+    this.ammo--; this.st.shots++; this.boltT = s.bolt; this.buzz(s.id === 'trovao' ? 45 : 28);
     if (this.world.life) for (const l of this.world.life) if (l.scatter) l.scatter(this.camera.position);
     sfx.shot(s.id === 'trovao' ? 1.5 : 1);
     if (s.bolt > 0.5) sfx.bolt(0.35); else sfx.shell(0.3);
@@ -345,14 +346,14 @@ export class Game {
         actor.kill(dir, part); this.st.kills++; if (part === 'head') this.st.heads++;
         if (this.mission.goal === 'hvt' && actor.kind !== 'hvt') this.st.optional++;
         this.ui.popup(part === 'head' ? 'NA CABEÇA!' : actor.kind === 'hvt' ? 'ALVO PRINCIPAL ABATIDO' : 'Abatido', part === 'head' ? 'gold' : 'ok', Math.round(dist) + ' m');
-        this.ui.hitmark(true);
+        this.ui.hitmark(true); this.buzz(part === 'head' ? [40, 40, 90] : [30, 40, 60]);
         // testemunhas
         let w = 0; for (const a of this.actors) if (a !== actor && a.alive && (a.kind === 'merc' || a.kind === 'hvt') && a.pos.distanceTo(actor.pos) < 22) { if (a.alert(actor.pos)) w++; }
         if (w) { this.alertMeter += Math.min(35, 14 * w); sfx.alert(); this.ui.toast('Um inimigo viu o corpo cair!'); }
         for (const a of this.actors) if (a.kind === 'civil' && a.alive && a.pos.distanceTo(actor.pos) < 25) a.alert(actor.pos);
         this.checkWin(actor);
       } else {
-        this.ui.popup('Ferido! Atire de novo', 'ok'); this.ui.hitmark(false);
+        this.ui.popup('Ferido! Atire de novo', 'ok'); this.ui.hitmark(false); this.buzz(18);
         actor.alert(this.camera.position); this.alertMeter += 15; sfx.alert();
       }
     } else {

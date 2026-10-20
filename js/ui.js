@@ -108,6 +108,7 @@ export class UI {
     $('s-vol').oninput = (e) => { this.save.settings.vol = +e.target.value; sfx.setVolume(this.save.settings.vol); writeSave(this.save); };
     $('s-vol').onchange = () => sfx.ui();
     $('s-assist').onclick = () => { sfx.ui(); this.save.settings.assist = !this.save.settings.assist; writeSave(this.save); this.renderSettings(); };
+    for (const [id, k] of [['s-haptics', 'haptics'], ['s-boltlift', 'boltLift'], ['s-lead', 'lead']]) $(id).onclick = () => { sfx.ui(); this.save.settings[k] = this.save.settings[k] === false; writeSave(this.save); this.renderSettings(); if (k === 'haptics' && this.save.settings.haptics && navigator.vibrate) navigator.vibrate(30); };
     $('s-fps').onclick = () => { sfx.ui(); this.save.settings.fps = !this.save.settings.fps; writeSave(this.save); this.renderSettings(); };
     $('s-reset').onclick = () => {
       const b = $('s-reset'); if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'TEM CERTEZA?'; sfx.empty(); setTimeout(() => { delete b.dataset.sure; b.textContent = 'APAGAR'; }, 3000); return; }
@@ -119,6 +120,8 @@ export class UI {
     $('s-quality').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.q === st.quality));
     $('s-sens').value = st.sens; $('s-vol').value = st.vol;
     $('s-assist').classList.toggle('on', !!st.assist); $('s-fps').classList.toggle('on', !!st.fps);
+    $('s-haptics').classList.toggle('on', st.haptics !== false); $('s-boltlift').classList.toggle('on', st.boltLift !== false); $('s-lead').classList.toggle('on', st.lead !== false);
+    $('s-haptics').closest('.row').style.display = ('vibrate' in navigator) ? '' : 'none';
     $('fps').classList.toggle('hidden', !st.fps);
   }
   tutorial(touch) {
@@ -147,7 +150,7 @@ export class UI {
   scope(v) { $('scope').classList.toggle('hidden', !v); $('b-zoom').classList.toggle('on', v); }
   scopeLift(v) { if (this._lift !== v) { this._lift = v; $('scope').classList.toggle('lift', v); } }
   binoc(v) { $('binoc').classList.toggle('hidden', !v); $('b-spot').classList.toggle('on', v); }
-  clearMarkers() { $('markers').innerHTML = ''; this.markers = []; }
+  clearMarkers() { $('markers').innerHTML = ''; this.markers = []; this.clearArrows(); this._leadOn = null; }
   buildMarkers(actors) {
     this.clearMarkers();
     actors.forEach(a => {
@@ -218,7 +221,46 @@ export class UI {
       const cls = alert ? 'alert' : ''; if (cls !== mk.cls) { mk.el.classList.toggle('alert', alert); mk.cls = cls; }
       if (a.kind === 'hvt') { const d = Math.round(a.pos.distanceTo(cam.position)); const t = (a.name || 'ALVO') + ' ' + d + ' m' + (a.state === 'flee' ? ' FUGINDO!' : ''); if (mk.lt !== t) { mk.tx.textContent = t; mk.lt = t; } }
     }
+    this.updateLead(g); this.updateArrows(g);
   }
+  // marca de mira a frente de veiculos (tempo de voo + vento)
+  updateLead(g) {
+    const el = $('leadmk'); let show = false;
+    if (g.scoped && g.scopeK > 0.8 && g.save.settings.lead !== false && g.mode === 'play') {
+      const cam = g.camera; let best = null, bd = 1e9;
+      for (const a of g.actors) { if (!a.alive || !a.ride || a.kind === 'civil' || a.kind === 'hostage' || !a.vel || a.vel.length() < 0.5) continue; const d = a.pos.distanceTo(cam.position); const s = (this._lv = this._lv || new THREE.Vector3()).copy(a.pos).project(cam); const c = Math.hypot(s.x, s.y); if (s.z < 1 && c < bd) { bd = c; best = a; } }
+      if (best) {
+        const st = g.stats(); const p = best.head.getWorldPosition(new THREE.Vector3()); const R = p.distanceTo(cam.position); const t = R / st.velocity * 1.02;
+        p.addScaledVector(best.vel, t); p.addScaledVector(g.windAccel(st).clone(), -0.5 * t * t); p.y -= 0.25; p.project(cam);
+        const x = (p.x * 0.5 + 0.5) * innerWidth, y = (-p.y * 0.5 + 0.5) * innerHeight; const sd = Math.min(innerHeight * 0.94, innerWidth * 0.62) / 2;
+        if (p.z < 1 && Math.hypot(x - innerWidth / 2, y - innerHeight / 2) < sd * 0.92) { show = true; el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`; }
+      }
+    }
+    if (show !== this._leadOn) { this._leadOn = show; el.classList.toggle('hidden', !show); }
+  }
+  // setas na borda para inimigos marcados fora da tela (ou fora da luneta)
+  updateArrows(g) {
+    const box = $('arrows'); this._arr = this._arr || new Map(); const cam = g.camera; const W = innerWidth, H = innerHeight; const used = new Set();
+    if (g.mode === 'play' && g.actors) for (const a of g.actors) {
+      if (!a.alive || !a.tagged) continue;
+      const v = (this._av = this._av || new THREE.Vector3()).copy(a.pos); v.y += 1.0; v.applyMatrix4(cam.matrixWorldInverse);
+      const behind = v.z > 0; const pr = v.clone().applyMatrix4(cam.projectionMatrix);
+      let x = pr.x, y = pr.y; if (behind) { x = -x; y = -y; }
+      const sx = x * W / 2, sy = -y * H / 2; let inside;
+      const sd = Math.min(H * 0.94, W * 0.62) / 2;
+      if (g.scoped) inside = !behind && Math.hypot(sx, sy) < sd * 0.9; else inside = !behind && Math.abs(x) < 0.97 && Math.abs(y) < 0.95;
+      if (inside) continue;
+      used.add(a); let el = this._arr.get(a); if (!el) { el = document.createElement('div'); el.className = 'arw' + (a.kind === 'hvt' ? ' hvt' : ''); el.innerHTML = '<i></i><span></span>'; box.appendChild(el); this._arr.set(a, el); }
+      const ang = Math.atan2(sy, sx); let ex, ey;
+      if (g.scoped) { ex = Math.cos(ang) * (sd - 26); ey = Math.sin(ang) * (sd - 26); }
+      else { const kx = (W / 2 - 34) / Math.max(1e-3, Math.abs(Math.cos(ang))), ky = (H / 2 - 34) / Math.max(1e-3, Math.abs(Math.sin(ang))); const k = Math.min(kx, ky); ex = Math.cos(ang) * k; ey = Math.sin(ang) * k; }
+      el.style.transform = `translate(${(W / 2 + ex).toFixed(0)}px, ${(H / 2 + ey).toFixed(0)}px) rotate(${(ang * 180 / Math.PI).toFixed(0)}deg)`;
+      const d = Math.round(a.pos.distanceTo(cam.position)) + ' m'; const sp = el.lastChild; if (sp.textContent !== d) sp.textContent = d; sp.style.transform = `rotate(${(-ang * 180 / Math.PI).toFixed(0)}deg)`;
+      el.style.display = '';
+    }
+    for (const [a, el] of this._arr) if (!used.has(a)) el.style.display = 'none';
+  }
+  clearArrows() { if (this._arr) { for (const el of this._arr.values()) el.remove(); this._arr.clear(); } }
   showResult(r) {
     this.showHud(false); this.hideBanner(); this.hideScreens();
     const el = $('result'); el.classList.remove('hidden'); const p = el.querySelector('.res');

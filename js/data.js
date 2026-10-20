@@ -159,7 +159,7 @@ export const MISSIONS = [
 ];
 
 const KEY = 'atirador_elite_v1';
-const DEF = { money: 0, owned: ['falcao'], weapon: 'falcao', up: { mira: 0, estab: 0, pente: 0, folego: 0 }, stars: {}, done: {}, best: {}, settings: { quality: 'auto', sens: 1, vol: 0.8, assist: true, fps: false, tutorial: true } };
+const DEF = { money: 0, owned: ['falcao'], weapon: 'falcao', up: { mira: 0, estab: 0, pente: 0, folego: 0 }, stars: {}, done: {}, best: {}, settings: { quality: 'auto', sens: 1, vol: 0.8, assist: true, fps: false, tutorial: true, haptics: true, boltLift: true, lead: true } };
 
 export function loadSave() {
   try {

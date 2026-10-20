@@ -285,3 +285,15 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
   .r-rank b { font-size: 20px; }
   .r-rank { margin: 2px auto 0; }
 }
+
+.set-body { max-height: calc(100vh - 80px); overflow-y: auto; }
+
+/* v1.3: marca de mira a frente e setas de inimigos marcados */
+#leadmk { position: absolute; left: 0; top: 0; z-index: 6; pointer-events: none; }
+#leadmk i { position: absolute; left: -7px; top: -7px; width: 12px; height: 12px; border: 2px solid #ffd23a; transform: rotate(45deg); box-shadow: 0 0 6px rgba(0, 0, 0, 0.8); }
+#leadmk span { position: absolute; left: 12px; top: -8px; font-size: 10px; font-weight: 900; color: #ffd23a; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+#arrows { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.arw { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.arw i { position: absolute; left: -9px; top: -9px; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 16px solid #ff5a44; filter: drop-shadow(0 0 3px #000); }
+.arw.hvt i { border-left-color: #ff9a3a; }
+.arw span { position: absolute; left: -40px; top: 10px; width: 50px; text-align: center; font-size: 10px; font-weight: 900; color: #ffb0a4; text-shadow: 0 1px 2px #000; }
