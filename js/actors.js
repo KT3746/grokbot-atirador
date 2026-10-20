@@ -260,6 +260,16 @@ export class Actor {
     this.alertSrc = src ? src.clone() : null;
     return !was;
   }
+  // investigar: anda ate o ponto suspeito, procura e volta (ou chama alerta se achar um corpo)
+  investigate(spot, why) {
+    if (!this.alive || this.ride || this.kind !== 'merc') return false;
+    const st = this.state;
+    if (st === 'alert' || st === 'flee' || st === 'cower' || st === 'dead') return false;
+    const sp = spot.clone(); if (why !== 'body') { sp.x += (Math.random() - 0.5) * 4; sp.z += (Math.random() - 0.5) * 4; } sp.y = this.groundY(sp.x, sp.z);
+    if (st === 'investigate') { const I = this.inv; if (why === 'body' && I.why !== 'body') { I.spot = sp; I.why = why; I.phase = 'go'; I.goT = 0; } return false; }
+    this.inv = { spot: sp, why, phase: 'wait', t: 0.5 + Math.random() * 1.1, goT: 0, home: st, homePos: this.pos.clone(), homeHead: this.heading };
+    this.state = 'investigate'; return true;
+  }
   kill(dir, part) {
     if (!this.alive) return; if (this.ride && this.kind === 'hvt') this.ride.stop(); this.alive = false; this.state = 'dead'; this.deadT = 0; this.hitPart = part;
     const h = new THREE.Vector3(dir.x, 0, dir.z); if (h.lengthSq() < 1e-6) h.set(0, 0, 1); h.normalize();
@@ -304,6 +314,15 @@ export class Actor {
       else if (!this.scrambleDone) { if (this.moveTo(this.scramble, 3.8, dt)) this.scrambleDone = true; }
       else this.turnTo(toPlayer, dt, 3);
       if (this.alertT <= 0) { this.state = this.path.length > 1 && this.def.pose !== 'idle' ? 'patrol' : 'idle'; if (this.state === 'idle') this.path[0].copy(this.pos); }
+    } else if (this.state === 'investigate') {
+      const I = this.inv; const toSpot = Math.atan2(I.spot.x - this.pos.x, I.spot.z - this.pos.z);
+      if (I.phase === 'wait') { I.t -= dt; this.turnTo(toSpot, dt, 4); if (I.t <= 0) { I.phase = 'go'; I.goT = 0; } }
+      else if (I.phase === 'go') { I.goT += dt; if (this.moveTo(I.spot, I.why === 'body' ? 2.7 : 1.8, dt) || I.goT > 45 || this.pos.distanceTo(I.spot) < 1.2) { I.phase = 'search'; I.t = 5 + Math.random() * 2; I.base = this.heading; this.arrived = I.why; } }
+      else if (I.phase === 'search') { I.t -= dt; this.turnTo(I.base + Math.sin(I.t * 0.9) * 1.3, dt, 2.5); this.lookYaw = Math.sin(this.t * 1.7) * 0.8; if (I.t <= 0) I.phase = 'back'; }
+      else if (I.phase === 'back') {
+        if (I.home === 'patrol') this.state = 'patrol';
+        else if (this.moveTo(I.homePos, 1.5, dt)) { this.state = I.home; this.heading = I.homeHead; }
+      }
     } else if (this.state === 'flee') {
       const tgt = this.kind === 'hvt' ? this.escape : this.civTarget;
       if (tgt && this.moveTo(tgt, this.kind === 'hvt' ? 4.6 : 4, dt)) { if (this.kind === 'hvt') this.escaped = true; else this.state = 'cower'; }
@@ -324,17 +343,17 @@ export class Actor {
     }
   }
   targetPose(t) {
-    const P = { ...POSE0 }; const br = Math.sin(t * 1.8 + this.phase) * 0.012; const alert = this.state === 'alert'; const armed = !!this.gun;
+    const P = { ...POSE0 }; const br = Math.sin(t * 1.8 + this.phase) * 0.012; const alert = this.state === 'alert'; const ready = alert || this.state === 'investigate'; const armed = !!this.gun;
     P.tx = 0.03 + br; P.hx = 0;
     if (this.state === 'kneel') return Object.assign(P, { by: 0.5 + Math.sin(t * 2) * 0.004, tx: 0.12 + Math.sin(t * 1.3) * 0.02, hx: 0.25 + Math.sin(t * 0.8) * 0.05, thL: -0.05, thR: -0.05, knL: 1.6, knR: 1.6, shL: -2.7, shR: -2.7, szL: 0.55, szR: 0.55, elL: -2.0, elR: -2.0 });
     if (this.state === 'cower') return Object.assign(P, { by: 0.55, tx: 0.5, thL: -1.3, thR: -1.3, knL: 2.2, knR: 2.2, shL: -2.6, shR: -2.6, szL: 0.5, szR: 0.5, elL: -2.1, elR: -2.1 });
     if (alert && this.scrambleDone) return Object.assign(P, { by: 0.62, tx: 0.15, thL: -1.4, thR: -0.3, knL: 1.4, knR: 1.9, shL: -1.45, shR: -1.25, szL: 0.25, szR: 0.4, elL: -0.2, elR: -0.95, gx: 0.0, gy: 0.42, gz: 0.3 });
-    if (armed) return Object.assign(P, alert ? { tx: 0.1, shL: -1.45, shR: -1.2, szL: 0.25, szR: 0.4, elL: -0.2, elR: -0.95, gx: 0.0, gy: 0.42, gz: 0.3 } : { shL: -0.7, shR: -0.4, szL: 0.35, szR: 0.25, elL: -1.15, elR: -1.25, gx: 0.55, gy: 0.2, gz: 0.26 });
+    if (armed) return Object.assign(P, ready ? { tx: 0.1, shL: -1.45, shR: -1.2, szL: 0.25, szR: 0.4, elL: -0.2, elR: -0.95, gx: 0.0, gy: 0.42, gz: 0.3 } : { shL: -0.7, shR: -0.4, szL: 0.35, szR: 0.25, elL: -1.15, elR: -1.25, gx: 0.55, gy: 0.2, gz: 0.26 });
     return Object.assign(P, { shL: br * 2, shR: -br * 2, elL: -0.15, elR: -0.15 });
   }
   animate(dt) {
     const t = this.t, s = this.speedNow, run = s > 2.5;
-    this.head.rotation.y = damp(this.head.rotation.y, this.state === 'idle' ? this.lookYaw : (this.waitT > 0 ? Math.sin(t * 0.7) * 0.6 : 0), 3, dt);
+    this.head.rotation.y = damp(this.head.rotation.y, this.state === 'idle' || (this.state === 'investigate' && this.inv.phase === 'search') ? this.lookYaw : (this.waitT > 0 ? Math.sin(t * 0.7) * 0.6 : 0), 3, dt);
     const tp = this.targetPose(t);
     for (const k of KEYS) this.cur[k] = damp(this.cur[k], tp[k], 9, dt);
     this.wWalk = damp(this.wWalk, s > 0.05 ? 1 : 0, 7, dt);

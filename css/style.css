@@ -189,6 +189,9 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 .mk.merc .tx { display: none; }
 .mk.alert .ic { border-top-color: #ffd23a; }
 .mk.alert .tx { display: block; color: #ffd23a; }
+.mk.inv .ic { border-top-color: #ffe9a0; }
+.mk.merc.inv .tx { display: block; font-size: 0; }
+.mk.merc.inv .tx::after { content: '?'; font-size: 14px; color: #ffe9a0; }
 .mk.hvt .ic { width: 14px; height: 14px; border: 2px solid #ff4b3b; transform: rotate(45deg); background: rgba(255, 60, 40, 0.35); margin-bottom: 3px; }
 .mk.hvt .tx { color: #ff8070; }
 .mk.hostage .ic, .mk.civil .ic { border-top-color: #4ab3ff; }

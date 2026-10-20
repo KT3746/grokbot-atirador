@@ -235,6 +235,8 @@ export class Game {
     if (this.ammo <= 0) { sfx.empty(); this.reload(); return; }
     this.ammo--; this.st.shots++; this.boltT = s.bolt; this.buzz(s.id === 'trovao' ? 45 : 28);
     if (this.world.life) for (const l of this.world.life) if (l.scatter) l.scatter(this.camera.position);
+    this.hearShot(s);
+    if (this.world.patrol) this.world.patrol.call(LIFE.focus, this.camera.position);
     sfx.shot(s.id === 'trovao' ? 1.5 : 1);
     if (s.bolt > 0.5) sfx.bolt(0.35); else sfx.shell(0.3);
     const cam = this.camera; cam.updateMatrixWorld();
@@ -381,10 +383,39 @@ export class Game {
     }
     if (this.killcam && this.killcam.b === b) { this.killcam.phase = 'after'; this.killcam.t = 0; this.killcam.hitPoint = p.clone(); this.killcam.hitDir = dir; }
   }
+  // tiro ouvido pela distancia: guardas vao olhar na direcao do som
+  hearShot(s) {
+    const cp = this.camera.position; const hear = 260 * (s.id === 'trovao' ? 1.4 : 1); let n = 0;
+    for (const a of this.actors) {
+      if (!a.alive || a.kind !== 'merc' || a.ride) continue; const d = a.pos.distanceTo(cp);
+      if (d > hear || Math.random() > 1.2 - d / hear) continue;
+      const dir = new THREE.Vector3(cp.x - a.pos.x, 0, cp.z - a.pos.z).normalize(); const spot = a.pos.clone().addScaledVector(dir, Math.min(30, d * 0.22));
+      if (a.investigate(spot, 'shot')) { a.inv.t += d / 343; n++; }
+    }
+    if (n) { this.alertMeter += 3 * n; this.ui.toast(n > 1 ? 'Guardas ouviram o tiro e vão olhar' : 'Um guarda ouviu o tiro e vai olhar'); }
+  }
+  // guardas veem corpos (e lanternas caidas a noite) e vao ver de perto
+  lookAround() {
+    const night = !!(this.mission.sky && this.mission.sky.night); let msg = null;
+    const bodies = this.actors.filter(b => !b.alive && b.deadT > 1.5 && b.kind !== 'hostage');
+    if (!bodies.length) return;
+    for (const a of this.actors) {
+      if (!a.alive || a.kind !== 'merc' || a.ride || a.state === 'alert' || a.state === 'flee' || (a.state === 'investigate' && a.inv.why === 'body')) continue;
+      const fx = Math.sin(a.heading), fz = Math.cos(a.heading);
+      for (const b of bodies) {
+        b.seenBy = b.seenBy || new Set(); if (b.seenBy.has(a)) continue;
+        const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz) || 1; const lit = !!(b.torch && night);
+        const range = lit ? 85 : night ? 16 : 30; const dot = (dx * fx + dz * fz) / d;
+        if (d < range && dot > (lit ? -0.3 : 0.25)) { b.seenBy.add(a); if (a.investigate(b.pos, 'body')) msg = lit ? 'Um guarda viu a lanterna caída e vai olhar' : 'Um guarda viu um corpo e vai olhar'; break; }
+      }
+    }
+    if (msg) { this.alertMeter += 6; sfx.alert(); this.ui.toast(msg); }
+  }
   alertNear(p, radius, add) {
     let n = 0;
     for (const a of this.actors) {
       if (!a.alive) continue; const d = a.pos.distanceTo(p);
+      if (a.kind === 'merc' && d >= radius && d < radius * 3.5) a.investigate(p, 'impact');
       if ((a.kind === 'merc' || a.kind === 'hvt') && d < radius) { if (a.alert(p)) n++; }
       if (a.kind === 'civil' && d < radius * 1.8) a.alert(p);
     }
@@ -444,7 +475,13 @@ export class Game {
     if (this.mode === 'play') {
       this.elapsed += dt; this.timeLeft -= dt;
       const alerted = this.actors.filter(a => a.alive && (a.state === 'alert' || a.state === 'flee') && (a.kind === 'merc' || a.kind === 'hvt')).length;
-      this.alertMeter = clamp(this.alertMeter + (alerted ? alerted * 1.5 : -3.5) * dt, 0, 100);
+      const inv = this.actors.filter(a => a.alive && a.state === 'investigate').length;
+      this.alertMeter = clamp(this.alertMeter + (alerted ? alerted * 1.5 : inv ? inv * 0.3 : -3.5) * dt, 0, 100);
+      this.lookT = (this.lookT || 0) - dt; if (this.lookT <= 0) { this.lookT = 0.4; this.lookAround(); }
+      for (const a of this.actors) if (a.arrived) {
+        const why = a.arrived; a.arrived = null;
+        if (why === 'body' && a.alive) { a.alert(a.inv.spot); let w = 0; for (const o of this.actors) if (o !== a && o.alive && o.kind === 'merc' && o.pos.distanceTo(a.pos) < 30 && o.alert(a.pos)) w++; this.alertMeter += 25 + 8 * w; sfx.alert(); this.ui.toast('Um guarda achou o corpo! Alerta!'); }
+      }
       if (this.alertMeter >= 100) this.finish(false, 'Os Corvos Negros descobriram você. Tente errar menos perto deles.');
       if (this.timeLeft <= 0) this.finish(false, 'O tempo acabou.');
       if (this.actors.some(a => a.escaped && a.alive)) this.finish(false, 'O alvo principal fugiu. Quando ele correr, atire rápido.');

@@ -230,8 +230,8 @@ export class UI {
         const key = (hpx | 0) + ':' + (wpx | 0); if (mk.bk !== key) { mk.bk = key; mk.br.style.height = (hpx + 6).toFixed(0) + 'px'; mk.br.style.width = (wpx + 6).toFixed(0) + 'px'; }
         if (a.kind === 'merc') { const t = Math.round(a.pos.distanceTo(cam.position)) + ' m'; if (mk.lt !== t) { mk.tx.textContent = t; mk.lt = t; } }
       }
-      const alert = a.state === 'alert' || a.state === 'flee';
-      const cls = alert ? 'alert' : ''; if (cls !== mk.cls) { mk.el.classList.toggle('alert', alert); mk.cls = cls; }
+      const alert = a.state === 'alert' || a.state === 'flee'; const inv = a.state === 'investigate';
+      const cls = alert ? 'alert' : inv ? 'inv' : ''; if (cls !== mk.cls) { mk.el.classList.toggle('alert', alert); mk.el.classList.toggle('inv', inv); mk.cls = cls; }
       if (a.kind === 'hvt') { const d = Math.round(a.pos.distanceTo(cam.position)); const t = (a.name || 'ALVO') + ' ' + d + ' m' + (a.state === 'flee' ? ' FUGINDO!' : ''); if (mk.lt !== t) { mk.tx.textContent = t; mk.lt = t; } }
     }
     this.updateLead(g); this.updateArrows(g);
