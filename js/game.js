@@ -144,7 +144,7 @@ export class Game {
     this.kick = 0; this.kickYaw = 0; this.aimVX = 0; this.aimVY = 0; this.lagX = 0; this.lagY = 0; this.rk = 0; this.rkv = 0; this.boltAnim = -1; this.camShake = 0; this.bullets = []; this.range = 300; this.rangeT = 0; this.rangeHit = null;
     this.alertMeter = 0; this.timeLeft = mission.time; this.elapsed = 0;
     this.st = { shots: 0, hits: 0, kills: 0, heads: 0, civil: 0, optional: 0 };
-    this.result = null; this.killcam = null; this.endT = 0; this.timeScale = 1;
+    this.result = null; this.killcam = null; this.endT = 0; this.timeScale = 1; this.rec = null; this.lastRec = null; this.replay = null;
     sfx.setEnv(this.world.env);
     this.ui.buildMarkers(this.actors);
     this.applyQuality(this.quality, false);
@@ -258,6 +258,9 @@ export class Game {
       const flight = Math.max(0.15, pred.t);
       this.killcam = { b, actor: pred.actor, t: 0, phase: 'fly', flight, scale: clamp(flight / 2.4, 0.03, 0.25), dist: pred.dist, vel: pred.actor.vel ? pred.actor.vel.clone() : new THREE.Vector3(), veh: pred.actor.ride || null };
       this.mode = 'killcam'; this.ui.killcam(true, Math.round(pred.dist)); sfx.whoosh();
+      // gravacao para o replay na tela de resultado
+      const nodes = []; pred.actor.root.traverse(o => nodes.push(o)); const vr = pred.actor.ride ? pred.actor.ride.root : null;
+      this.rec = { frames: [], nodes, veh: vr, dist: Math.round(pred.dist), hitFrame: -1, hitPoint: null, hitDir: null, mission: this.mission.id };
     }
     if (this.ammo === 0) setTimeout(() => this.reload(), (s.bolt + 0.1) * 1000);
   }
@@ -341,10 +344,10 @@ export class Game {
   onImpact(b, h) {
     const p = h.point, dist = p.distanceTo(b.start), dir = b.v.clone().normalize();
     const actor = h.object && h.object.userData.actor;
-    const scale = clamp(dist / 120, 1, 6) * (this.scoped ? 1 : 1.5);
+    const inKc = this.killcam && this.killcam.b === b; const scale = inKc ? 1 : clamp(dist / 120, 1, 6) * (this.scoped ? 1 : 1.5);
     if (actor) {
       const part = h.object.userData.part; this.st.hits++;
-      this.fx.impact(p, dir.clone().negate(), 'body', scale * 0.7); sfx.impact('body', dist);
+      this.fx.impact(p, dir.clone().negate(), 'body', inKc ? 0.35 : scale * 0.7); sfx.impact('body', dist);
       if (actor.kind === 'hostage') { actor.hp = 0; actor.kill(dir, part); this.ui.popup('Você acertou um refém!', 'bad'); this.finish(false, 'Você acertou um refém. Nunca atire perto dos reféns sem ter certeza.'); return; }
       if (actor.kind === 'civil') { actor.hp = 0; actor.kill(dir, part); this.st.civil++; this.ui.popup('Civil atingido! Penalidade', 'bad'); sfx.fail(); this.alertNear(p, 30, 20); return; }
       const dmg = b.s.damage * (part === 'head' ? 3 : part === 'torso' ? 1 : 0.55);
@@ -408,6 +411,7 @@ export class Game {
   // ---------- LACO PRINCIPAL ----------
   update(rdt) {
     if (!this.scene) return;
+    if (this.mode === 'replay') { this.updateReplay(rdt); this.envInfo.sky.position.copy(this.camera.position); return; }
     const real = rdt; let dt = rdt * this.timeScale;
     this.t += dt;
     // vento com rajadas
@@ -468,7 +472,49 @@ export class Game {
     if (sc.right !== ext) { sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix(); }
     dir.target.position.copy(focus); dir.position.copy(focus).addScaledVector(this.envInfo.sunDir, 800);
     this.envInfo.sky.position.copy(cam.position);
+    if (this.mode === 'killcam' && this.rec) this.recFrame(real);
     this.ui.updateHud(this);
+  }
+  recFrame(real) {
+    const R = this.rec, cam = this.camera, fx = this.fx; if (R.frames.length > 900) return;
+    const n = R.nodes.length; const a = new Float32Array(n * 10);
+    for (let i = 0; i < n; i++) { const o = R.nodes[i]; o.position.toArray(a, i * 10); o.quaternion.toArray(a, i * 10 + 3); o.scale.toArray(a, i * 10 + 7); }
+    const tr = (o) => o.visible ? [o.position.clone(), o.quaternion.clone(), o.scale.clone()] : null;
+    R.frames.push({ dt: real, cp: cam.position.clone(), cq: cam.quaternion.clone(), fov: cam.fov, b: tr(fx.bullet), tr: tr(fx.trail), a, v: R.veh ? [R.veh.position.clone(), R.veh.quaternion.clone()] : null });
+    if (R.hitFrame < 0 && this.killcam && this.killcam.hitPoint) { R.hitFrame = R.frames.length - 1; R.hitPoint = this.killcam.hitPoint.clone(); R.hitDir = (this.killcam.hitDir || new THREE.Vector3(0, 0, -1)).clone(); }
+  }
+  applyRecFrame(f) {
+    const R = this.replay.rec, cam = this.camera, fx = this.fx;
+    for (let i = 0; i < R.nodes.length; i++) { const o = R.nodes[i]; o.position.fromArray(f.a, i * 10); o.quaternion.fromArray(f.a, i * 10 + 3); o.scale.fromArray(f.a, i * 10 + 7); }
+    R.nodes[0].updateMatrixWorld(true);
+    if (R.veh && f.v) { R.veh.position.copy(f.v[0]); R.veh.quaternion.copy(f.v[1]); R.veh.updateMatrixWorld(true); }
+    cam.position.copy(f.cp); cam.quaternion.copy(f.cq); cam.fov = f.fov; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    for (const [o, d] of [[fx.bullet, f.b], [fx.trail, f.tr]]) { o.visible = !!d; if (d) { o.position.copy(d[0]); o.quaternion.copy(d[1]); o.scale.copy(d[2]); } }
+  }
+  hasReplay() { return !!(this.lastRec && this.lastRec.frames.length > 8 && this.mission && this.lastRec.mission === this.mission.id); }
+  startReplay() {
+    if (!this.hasReplay() || this.mode !== 'result') return false;
+    const rec = this.lastRec; const snap = new Float32Array(rec.nodes.length * 10);
+    rec.nodes.forEach((o, i) => { o.position.toArray(snap, i * 10); o.quaternion.toArray(snap, i * 10 + 3); o.scale.toArray(snap, i * 10 + 7); });
+    this.replay = { rec, i: 0, acc: 0, snap, veh: rec.veh ? [rec.veh.position.clone(), rec.veh.quaternion.clone()] : null, cam: [this.camera.position.clone(), this.camera.quaternion.clone(), this.camera.fov], hit: false };
+    this.mode = 'replay'; this.rifle.visible = false; this.ui.replay(true, rec.dist); sfx.whoosh(); this.applyRecFrame(rec.frames[0]);
+    return true;
+  }
+  updateReplay(dt) {
+    const P = this.replay, R = P.rec; P.acc += dt;
+    while (P.i < R.frames.length - 1 && P.acc >= R.frames[P.i].dt) { P.acc -= R.frames[P.i].dt; P.i++; }
+    const f = R.frames[P.i]; this.applyRecFrame(f);
+    if (!P.hit && R.hitFrame >= 0 && P.i >= R.hitFrame) { P.hit = true; this.fx.impact(R.hitPoint, R.hitDir.clone().negate(), 'body', 0.35); sfx.impact('body', 100); }
+    this.fx.update(dt * 0.3);
+    if (P.i >= R.frames.length - 1) this.stopReplay();
+  }
+  stopReplay() {
+    const P = this.replay; if (!P) return; const R = P.rec;
+    R.nodes.forEach((o, i) => { o.position.fromArray(P.snap, i * 10); o.quaternion.fromArray(P.snap, i * 10 + 3); o.scale.fromArray(P.snap, i * 10 + 7); }); R.nodes[0].updateMatrixWorld(true);
+    if (R.veh && P.veh) { R.veh.position.copy(P.veh[0]); R.veh.quaternion.copy(P.veh[1]); R.veh.updateMatrixWorld(true); }
+    this.camera.position.copy(P.cam[0]); this.camera.quaternion.copy(P.cam[1]); this.camera.fov = P.cam[2]; this.camera.updateProjectionMatrix();
+    this.fx.bullet.visible = false; this.fx.trail.visible = false;
+    this.replay = null; this.mode = 'result'; this.ui.replay(false); this.ui.showResult(this.result);
   }
   updatePlayer(dt) {
     const s = this.stats(), cam = this.camera;
@@ -520,6 +566,7 @@ export class Game {
   }
   updateKillcam(dt) {
     const k = this.killcam, cam = this.camera; k.t += dt;
+    RIM.uRim.value = 0.14 * (1 + 0.8 * (this.nvK || 0)); RIM.uFogK.value = 0.2;
     this.rifle.visible = false;
     if (k.phase === 'fly') {
       const b = k.b; const near = b.p.distanceTo(k.actor.pos) < 12;
@@ -540,7 +587,7 @@ export class Game {
       cam.position.set(c.x + Math.sin(ang) * rr, c.y + 1.0 + k.t * 0.3, c.z + Math.cos(ang) * rr);
       const gy = this.world.groundAt(cam.position.x, cam.position.z) + 0.5; if (cam.position.y < gy) cam.position.y = gy;
       cam.fov = 45; cam.updateProjectionMatrix(); cam.lookAt(c);
-      if (k.t > 2.6 || (!this.result && k.t > 1.2)) { this.timeScale = 1; this.killcam = null; this.ui.killcam(false); if (this.result) { this.mode = 'result'; this.ui.showResult(this.result); } else { this.mode = 'play'; this.ui.scope(this.scoped); } }
+      if (k.t > 2.6 || (!this.result && k.t > 1.2)) { this.timeScale = 1; this.killcam = null; if (this.rec) { this.lastRec = this.rec; this.rec = null; } this.ui.killcam(false); if (this.result) { this.mode = 'result'; this.ui.showResult(this.result); } else { this.mode = 'play'; this.ui.scope(this.scoped); } }
     }
   }
   // distancia que o vento empurra a bala e queda prevista (para o ponto de impacto)

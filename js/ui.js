@@ -27,6 +27,7 @@ export class UI {
     $('r-menu').onclick = () => { sfx.uiBack(); this.app.quit('maps'); };
     $('r-retry').onclick = () => { sfx.ui(); this.app.restart(); };
     $('r-next').onclick = () => { sfx.ui(); this.app.next(); };
+    $('r-replay').onclick = () => { sfx.ui(); const g = this.app.game; if (g && g.startReplay()) this.hideScreens(); };
     $('tut-ok').onclick = () => { sfx.ui(); $('tutorial').classList.add('hidden'); this.store.save.settings.tutorial = false; writeSave(this.store.save); this.app.resume(true); };
     this.bindSettings();
   }
@@ -166,6 +167,7 @@ export class UI {
   popup(a, cls = 'ok', b = '') { const e = $('popup'); e.className = ''; void e.offsetWidth; e.className = 'show ' + cls; e.querySelector('.p1').textContent = a; e.querySelector('.p2').textContent = b; }
   hitmark(kill) { const e = $('hitmark'); e.className = ''; if (kill === null) return; void e.offsetWidth; e.className = kill ? 'kill' : 'hit'; }
   shotFx(scoped, bolt) { const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); if (bolt || true) { const s = $('shell'); s.classList.remove('go'); void s.offsetWidth; setTimeout(() => s.classList.add('go'), bolt ? 450 : 30); } }
+  replay(v, dist) { $('letterbox').classList.toggle('hidden', !v); $('letterbox').classList.toggle('rp', !!v); if (v) { $('kc-dist').textContent = dist + ' m'; $('kc-lab').textContent = 'REPLAY'; } else $('kc-lab').textContent = 'TIRO FINAL'; }
   killcam(v, dist) { $('letterbox').classList.toggle('hidden', !v); if (v) { $('kc-dist').textContent = dist + ' m'; $('scope').classList.add('hidden'); } }
   banner(t, win) { const b = $('banner'); b.textContent = t; b.className = win ? 'win' : 'lose'; }
   hideBanner() { $('banner').className = 'hidden'; }
@@ -274,7 +276,7 @@ export class UI {
     const W = innerWidth, H = innerHeight; let l = 30, r = W - 30, t = 30, b = H - 30;
     const vis = (e) => e && e.offsetParent !== null && getComputedStyle(e).display !== 'none' && !e.classList.contains('hidden');
     for (const sel of ['.hud-tl', '.hud-tc', '.hud-wind', '#b-pause']) { const e = document.querySelector(sel); if (vis(e)) { const R = e.getBoundingClientRect(); if (R.width) t = Math.max(t, R.bottom + 24); } }
-    for (const e of document.querySelectorAll('#touch .tbtn, .hud-ammo')) { if (!vis(e)) continue; const R = e.getBoundingClientRect(); if (!R.width || R.top > H * 0.5 && R.bottom < t) continue;
+    for (const e of document.querySelectorAll('#touch .tbtn, .hud-ammo')) { if (!vis(e)) continue; const R = e.getBoundingClientRect(); if (!R.width) continue;
       if (R.left + R.width / 2 > W / 2) r = Math.min(r, R.left - 26); else l = Math.max(l, R.right + 26); }
     const bh = document.querySelector('.hud-breath'); if (vis(bh)) { const R = bh.getBoundingClientRect(); if (R.width) b = Math.min(b, R.top - 18); }
     if (r - l < 160) { const c = (l + r) / 2; l = c - 80; r = c + 80; } if (b - t < 100) { const c = (t + b) / 2; t = c - 50; b = c + 50; }
@@ -283,6 +285,7 @@ export class UI {
   clearArrows() { if (this._arr) { for (const el of this._arr.values()) el.remove(); this._arr.clear(); } }
   showResult(r) {
     this.showHud(false); this.hideBanner(); this.hideScreens();
+    { const g = this.app.game; $('r-replay').classList.toggle('hidden', !(g && g.hasReplay && g.hasReplay())); }
     const el = $('result'); el.classList.remove('hidden'); const p = el.querySelector('.res');
     p.className = 'panel res ' + (r.win ? 'win' : 'lose');
     $('r-title').textContent = r.win ? 'MISSÃO CUMPRIDA' : 'MISSÃO FALHOU';

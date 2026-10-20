@@ -108,7 +108,7 @@ const app = {
   applySettings() { sfx.setVolume(store.save.settings.vol); applyQuality(); ui.renderSettings(); },
   lockHint() { $('lockhint').classList.toggle('hidden', !(input.desktop && game.mode === 'play' && !input.locked)); },
 };
-const ui = new UI(store, app); game.ui = ui;
+const ui = new UI(store, app); game.ui = ui; app.game = game;
 const input = new Input(game, app, canvas);
 
 function requestFS() {
@@ -165,8 +165,8 @@ function frame(now) {
   if (q === 'baixa' && game.nvK < 0.01) renderer.render(game.scene, game.camera);
   else {
     const sd = Math.min(innerHeight * 0.94, innerWidth * 0.62);
-    scopePass.uniforms.uK.value = game.mode === 'killcam' ? 0 : game.scopeK; scopePass.uniforms.uR.value = sd / 2 / innerHeight; scopePass.uniforms.uAspect.value = innerWidth / innerHeight;
-    bloom.strength = game.mode === 'killcam' ? 0.42 : 0.26;
+    scopePass.uniforms.uK.value = game.mode === 'killcam' || game.mode === 'replay' ? 0 : game.scopeK; scopePass.uniforms.uR.value = sd / 2 / innerHeight; scopePass.uniforms.uAspect.value = innerWidth / innerHeight;
+    bloom.strength = game.mode === 'killcam' || game.mode === 'replay' ? 0.32 : 0.26;
     const U = scopePass.uniforms; const m = game.mission; const gr = GRADES[m && m.sky.night ? 'noite' : (m ? m.map : 'cidade')] || GRADES.cidade;
     U.uLift.value.fromArray(gr.lift); U.uGain.value.fromArray(gr.gain); U.uSat.value = gr.sat; U.uCon.value = gr.con; U.uExposure.value = renderer.toneMappingExposure; U.uNV.value = game.nvK || 0; U.uTime.value = (now % 10000) / 1000;
     if (game.envInfo) { _sv.copy(game.envInfo.sunDir).multiplyScalar(1000).add(game.camera.position).project(game.camera); game.camera.getWorldDirection(_fw); const facing = _fw.dot(game.envInfo.sunDir);

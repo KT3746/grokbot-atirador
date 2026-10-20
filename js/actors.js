@@ -11,7 +11,7 @@ function patch(m) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uRim = RIM.uRim; sh.uniforms.uRimColor = RIM.uRimColor; sh.uniforms.uFogK = RIM.uFogK;
     sh.fragmentShader = 'uniform float uRim; uniform vec3 uRimColor; uniform float uFogK;\n' + sh.fragmentShader
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n{ vec3 vd = normalize(vViewPosition); float rim = pow(1.0 - clamp(abs(dot(normal, vd)), 0.0, 1.0), 2.6); totalEmissiveRadiance += uRimColor * rim * uRim; }')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n{ vec3 vd = normalize(vViewPosition); float rim = pow(1.0 - clamp(abs(dot(normal, vd)), 0.0, 1.0), 2.6); totalEmissiveRadiance += mix(uRimColor, diffuseColor.rgb * 1.6, 0.6) * rim * uRim; }')
       .replace('#include <fog_fragment>', '#ifdef USE_FOG\n#ifdef FOG_EXP2\nfloat fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);\n#else\nfloat fogFactor = smoothstep(fogNear, fogFar, vFogDepth);\n#endif\ngl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, fogFactor * uFogK);\n#endif');
   };
   m.customProgramCacheKey = () => 'rim-actor';

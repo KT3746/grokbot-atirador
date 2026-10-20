@@ -36,7 +36,7 @@ export class FX {
   }
   impact(p, normal, surf, distScale = 1) {
     const k = Math.max(1, distScale);
-    const col = { sand: 0xd8b888, dirt: 0x9a8668, stone: 0xb0a898, metal: 0x9aa0a8, wood: 0x8a7050, body: 0x6a6a6a, glass: 0xd8ecff }[surf] || 0xaaaaaa;
+    const col = { sand: 0xd8b888, dirt: 0x9a8668, stone: 0xb0a898, metal: 0x9aa0a8, wood: 0x8a7050, body: 0x4a4542, glass: 0xd8ecff }[surf] || 0xaaaaaa;
     const n = normal || new THREE.Vector3(0, 1, 0);
     const nP = surf === 'body' ? 3 : 7;
     for (let i = 0; i < nP; i++) { const v = n.clone().multiplyScalar(1.5 + Math.random() * 2.5).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 1.8, (Math.random() - 0.5) * 2)); this.spawn(p, v, { size: 0.35 * k, grow: 2.2, life: 1.0 + Math.random() * 0.8, color: col, opacity: 0.55, drag: 2.2, g: -0.4 }); }
