@@ -138,7 +138,7 @@ export class UI {
       '<b>Botão direito</b>: abre a luneta. <b>Rodinha</b>: muda o zoom.',
       '<b>Shift</b> (segure): prende a respiração e a mira para de balançar.',
       '<b>Botão esquerdo</b>: atira. <b>R</b>: recarrega. <b>Esc</b>: pausa.',
-      '<b>B</b>: binóculo. Deixe o centro sobre um inimigo para <b>marcar</b> ele com um quadro vermelho.',
+      '<b>B</b>: binóculo. Deixe o centro sobre um inimigo para <b>marcar</b> ele com um quadro vermelho. <b>N</b>: visão noturna nas missões de noite.',
       'Olhe o <b>vento</b> no alto da tela: ele empurra a bala para o lado.',
       'Mire na cabeça para ganhar mais dinheiro. Nunca acerte reféns ou civis (marcados em azul).',
     ];
