@@ -459,6 +459,7 @@ export class Game {
       if (this.mode === 'play' && gust > 1.55 && !this.gustOn) { this.gustOn = true; this.ui.toast('Rajada forte! Espere o vento acalmar'); } else if (gust < 1.2) this.gustOn = false;
     }
     sfx.setRain(this.mission.weather === 'rain' && this.mode !== 'menu' ? 1 : 0);
+    sfx.setSiren(this.world.patrol && (this.mode === 'play' || this.mode === 'killcam') ? this.world.patrol.siren(this.camera.position) : 0, this.t);
     const ws = wb.speed * gust; this.wind.set(Math.sin(dang) * ws, 0, -Math.cos(dang) * ws);
     sfx.setWind(ws, this.t);
     const cam = this.camera;
@@ -477,6 +478,7 @@ export class Game {
       const alerted = this.actors.filter(a => a.alive && (a.state === 'alert' || a.state === 'flee') && (a.kind === 'merc' || a.kind === 'hvt')).length;
       const inv = this.actors.filter(a => a.alive && a.state === 'investigate').length;
       this.alertMeter = clamp(this.alertMeter + (alerted ? alerted * 1.5 : inv ? inv * 0.3 : -3.5) * dt, 0, 100);
+      if (this.world.patrol && this.world.patrol.news) { this.world.patrol.news = false; this.ui.toast('Patrulha de segurança chegando com luzes piscando'); }
       this.lookT = (this.lookT || 0) - dt; if (this.lookT <= 0) { this.lookT = 0.4; this.lookAround(); }
       for (const a of this.actors) if (a.arrived) {
         const why = a.arrived; a.arrived = null;

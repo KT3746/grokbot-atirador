@@ -278,8 +278,28 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
     const fm = new THREE.MeshBasicMaterial({ map: makeGlowTex(), color: new THREE.Color(1, 0.9, 0.72).multiplyScalar(wet ? 0.55 : 0.32), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     const rm = new THREE.MeshBasicMaterial({ map: makeGlowTex(), color: new THREE.Color(1, 0.1, 0.05).multiplyScalar(wet ? 0.6 : 0.3), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     const fpool = new THREE.InstancedMesh(qg, fm, cars.length), rpool = new THREE.InstancedMesh(qg, rm, cars.length); fpool.frustumCulled = rpool.frustumCulled = false; scene.add(fpool); scene.add(rpool);
-    lights = { lp, lg, lmat, fpool, rpool, wet };
+    // luz dos farois nas paredes ao lado da rua (quadro aditivo barato, so media e alta)
+    let wall = null;
+    if (q !== 'baixa' && opts.bld && opts.bld.length) {
+      const wg = new THREE.PlaneGeometry(1, 1); wg.translate(0, 0.5, 0);
+      const wm = new THREE.MeshBasicMaterial({ map: makeGlowTex(), color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 });
+      const wim = new THREE.InstancedMesh(wg, wm, cars.length * 2); wim.frustumCulled = false; wim.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      for (let i = 0; i < cars.length * 2; i++) wim.setColorAt(i, new THREE.Color(0, 0, 0)); scene.add(wim); wall = wim;
+    }
+    lights = { lp, lg, lmat, fpool, rpool, wet, wall };
   }
+  // fachada mais perto da rua num ponto (com cache)
+  const facCache = new Map();
+  const facade = (axis, S, side, along) => {
+    const key = axis + S + ':' + side + ':' + Math.round(along / 3); if (facCache.has(key)) return facCache.get(key);
+    let best = null;
+    for (const b of opts.bld || []) {
+      if (axis === 'z') { if (Math.abs(b.z - along) > b.d / 2 - 1) continue; const f = b.x - side * b.w / 2; const o = (f - S) * side; if (o > 7 && o < 22 && (best == null || o < best)) best = o; }
+      else { if (Math.abs(b.x - along) > b.w / 2 - 1) continue; const f = b.z - side * b.d / 2; const o = (f - S) * side; if (o > 7 && o < 22 && (best == null || o < best)) best = o; }
+    }
+    facCache.set(key, best); return best;
+  };
+  const WC = new THREE.Color();
   const LM = new THREE.Matrix4(), LQ = new THREE.Quaternion(), LS = new THREE.Vector3(), LP = new THREE.Vector3();
   const placeLights = (c) => {
     if (!lights) return; const sy = Math.sin(c.yaw), cy = Math.cos(c.yaw); const o = c.idx * 12; const y0 = 0.72;
@@ -288,12 +308,24 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
     const w = lights.wet; LQ.setFromAxisAngle(Y, c.yaw);
     LP.set(c.x + sy * (w ? 7 : 5.5), 0.08, c.z + cy * (w ? 7 : 5.5)); LS.set(3.2, 1, w ? 10 : 7); LM.compose(LP, LQ, LS); lights.fpool.setMatrixAt(c.idx, LM);
     LP.set(c.x - sy * (w ? 3.6 : 2.8), 0.08, c.z - cy * (w ? 3.6 : 2.8)); LS.set(2.2, 1, w ? 4.5 : 2.6); LM.compose(LP, LQ, LS); lights.rpool.setMatrixAt(c.idx, LM);
+    if (lights.wall) {
+      for (let k = 0; k < 2; k++) {
+        const side = k ? 1 : -1; const id = c.idx * 2 + k; let o = null; let S = 0, along = 0; const axis = c.turn ? null : c.L.axis;
+        if (axis) { S = Math.round(c.L.c / 70) * 70; along = (axis === 'z' ? c.z + cy * 10 : c.x + sy * 10); o = facade(axis, S, side, along); }
+        if (o == null) { lights.wall.setMatrixAt(id, ZERO4); continue; }
+        const lat = Math.abs(S + side * o - (axis === 'z' ? c.x : c.z)); const I = 0.5 / (1 + (lat / 7) * (lat / 7));
+        if (axis === 'z') { LP.set(S + side * o - side * 0.05, 0.1, along); LQ.setFromAxisAngle(Y, Math.PI / 2); } else { LP.set(along, 0.1, S + side * o - side * 0.05); LQ.identity(); }
+        LS.set(11, 4.2, 1); LM.compose(LP, LQ, LS); lights.wall.setMatrixAt(id, LM); lights.wall.setColorAt(id, WC.setRGB(I, I * 0.9, I * 0.72));
+      }
+    }
   };
+  const ZERO4 = new THREE.Matrix4().makeScale(0, 0, 0);
   const place0 = place;
   place = (c) => { place0(c); placeLights(c); };
   cars.forEach(place);
 
   // ---------- pedestres nas faixas: pernas e bracos andando, fogem para os predios ----------
+  const LM2 = new THREE.Matrix4(); const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
   const crossings = [];
   const xs = opts.cwX || [-140, -70, 70, 140], zs = opts.cwZ || [-70, -140, -350];
   for (const X of xs) for (const Z of zs) {
@@ -321,21 +353,57 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
     peds.forEach((p, i) => m.setColorAt(i, C.set(k === 'head' ? pc[i].k : k.startsWith('leg') ? pc[i].p : pc[i].s)));
     m.userData.surf = 'body'; scene.add(m); PIM[k] = m;
   }
+  // portas dos predios perto das faixas: os pedestres fogem por elas
+  const doors = []; const bld = opts.bld || [];
+  for (const X of xs) for (const Z of zs) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const cx = X + sx * 35, cz = Z + sz * 35; const inB = bld.filter(b => Math.abs(b.x - cx) < 30 && Math.abs(b.z - cz) < 30); if (!inB.length) continue;
+    // face voltada para a rua norte sul (x = X) e face voltada para a rua leste oeste (z = Z)
+    let bx = null; for (const b of inB) { const f = b.x - sx * b.w / 2; if (bx == null || Math.abs(f - X) < Math.abs(bx.f - X)) bx = { b, f }; }
+    let bz = null; for (const b of inB) { const f = b.z - sz * b.d / 2; if (bz == null || Math.abs(f - Z) < Math.abs(bz.f - Z)) bz = { b, f }; }
+    if (bx && Math.abs(bx.f - X) < 20) { const b = bx.b; const dz = clampN(Z + sz * 16, b.z - b.d / 2 + 2, b.z + b.d / 2 - 2); doors.push({ x: bx.f, z: dz, nx: -sx, nz: 0, open: 0, box: inB }); }
+    if (bz && Math.abs(bz.f - Z) < 20) { const b = bz.b; const dx = clampN(X + sx * 16, b.x - b.w / 2 + 2, b.x + b.w / 2 - 2); doors.push({ x: dx, z: bz.f, nx: 0, nz: -sz, open: 0, box: inB }); }
+  }
+  let doorIM = null, doorIn = null;
+  if (doors.length) {
+    const dg = new THREE.BoxGeometry(1.5, 2.4, 0.1); dg.translate(0.75, 1.2, 0);
+    doorIM = new THREE.InstancedMesh(dg, new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 0.6 }), doors.length); doorIM.frustumCulled = false; doorIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const ig = new THREE.PlaneGeometry(1.5, 2.4); ig.translate(0, 1.2, 0);
+    doorIn = new THREE.InstancedMesh(ig, new THREE.MeshBasicMaterial({ color: opts.night ? 0xc89050 : 0x1a1410 }), doors.length); doorIn.frustumCulled = false;
+    doors.forEach((d, i) => { d.yaw = Math.atan2(d.nx, d.nz); d.tx = Math.cos(d.yaw); d.tz = -Math.sin(d.yaw); LM2.compose(P3.set(d.x + d.nx * 0.03, 0.2, d.z + d.nz * 0.03), Q.setFromAxisAngle(Y, d.yaw), S1); doorIn.setMatrixAt(i, LM2); placeDoor(d, i); });
+    scene.add(doorIM); scene.add(doorIn);
+  }
+  function placeDoor(d, i) { const hx = d.x - d.tx * 0.75 + d.nx * 0.08, hz = d.z - d.tz * 0.75 + d.nz * 0.08; LM2.compose(P3.set(hx, 0.2, hz), Q.setFromAxisAngle(Y, d.yaw - Math.min(1, d.open) * 1.4), S1); doorIM.setMatrixAt(i, LM2); }
+  // guarda-chuva na chuva
+  let umb = null;
+  if (opts.wet) {
+    const cg = new THREE.ConeGeometry(0.66, 0.3, 10, 1, true); cg.translate(-0.22, 2.08, 0.3); const st = new THREE.CylinderGeometry(0.012, 0.012, 1.15, 4); st.translate(-0.22, 1.5, 0.3);
+    umb = new THREE.InstancedMesh(mergeGeometries([cg.toNonIndexed(), st.toNonIndexed()]), new THREE.MeshStandardMaterial({ roughness: 0.35, side: THREE.DoubleSide }), NP); umb.frustumCulled = false; umb.castShadow = true; umb.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const uc = [0x16181c, 0x1d2a50, 0x8a1c22, 0xd8b030, 0x2a5a3a, 0x6a2a6a]; peds.forEach((p, i) => umb.setColorAt(i, C.set(uc[Math.floor(r() * uc.length)]))); umb.count = peds.length; scene.add(umb);
+  }
   const onPedHit = (id) => { const p = peds[id]; if (!p || p.down || p.state === 'gone') return 'body'; p.down = true; for (const o of peds) { o.panic = 12; if (Math.hypot(o.x - p.x, o.z - p.z) < 120) startFlee(o); } for (const c of cars) if (c.hit <= 0) c.panic = 10; return 'civil'; };
   for (const k of Object.keys(PIM)) PIM[k].userData.onHit = onPedHit;
   const inWin = (ph, w) => { const a = w[0] % CYC, e = w[1] % CYC; return a < e ? ph >= a && ph < e : ph >= a || ph < e; };
   const winAge = (ph, w) => ((ph - w[0]) % CYC + CYC) % CYC;
   // fugir: corre para dentro do quarteirao mais perto (entra no predio) e some
+  function segBox(x0, z0, x1, z1, b) {
+    const minx = b.x - b.w / 2 - 0.4, maxx = b.x + b.w / 2 + 0.4, minz = b.z - b.d / 2 - 0.4, maxz = b.z + b.d / 2 + 0.4; let t0 = 0, t1 = 1; const dx = x1 - x0, dz = z1 - z0;
+    for (const [p, q] of [[-dx, x0 - minx], [dx, maxx - x0], [-dz, z0 - minz], [dz, maxz - z0]]) { if (Math.abs(p) < 1e-9) { if (q < 0) return false; continue; } const t = q / p; if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } }
+    return t0 <= t1;
+  }
   function startFlee(p) {
     if (p.down || p.state === 'gone' || p.state === 'flee') return;
     const X = p.cw.X, Z = p.cw.Z; let best = null, bd = 1e9;
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const cx = X + sx * 35, cz = Z + sz * 35; const d = Math.hypot(cx - p.x, cz - p.z); if (d < bd) { bd = d; best = { x: cx, z: cz }; } }
-    p.state = 'flee'; p.fx = best.x; p.fz = best.z; p.fleeD = 0; p.panic = 12;
+    p.state = 'flee'; p.fx = best.x; p.fz = best.z; p.fleeD = 0; p.panic = 12; p.door = null; p.wp = null;
+    // porta mais perto com caminho livre (nao atravessa predio)
+    let bdd = 60, door = null;
+    for (const d of doors) { const fx = d.x + d.nx * 1.4, fz = d.z + d.nz * 1.4; const dd = Math.hypot(fx - p.x, fz - p.z); if (dd >= bdd) continue; if (d.box.some(b => segBox(p.x, p.z, fx, fz, b))) continue; bdd = dd; door = d; }
+    if (door) { p.door = door; p.wp = [{ x: door.x + door.nx * 1.4, z: door.z + door.nz * 1.4 }, { x: door.x - door.nx * 0.6, z: door.z - door.nz * 0.6 }]; }
   }
   const B = new THREE.Matrix4(), L4 = new THREE.Matrix4(), R4 = new THREE.Matrix4(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0), QD = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
   const placePed = (p, t, dt) => {
     const i = p.idx;
-    if (p.state === 'gone') { for (const k in PIM) PIM[k].setMatrixAt(i, ZERO); return; }
+    if (p.state === 'gone') { for (const k in PIM) PIM[k].setMatrixAt(i, ZERO); if (umb) umb.setMatrixAt(i, ZERO); return; }
     let moving = false;
     if (p.state === 'flee') { moving = true; }
     else {
@@ -352,10 +420,10 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
     P3.set(p.x, (p.down ? 0.18 : p.y + bob), p.z); Q.setFromAxisAngle(Y, p.yaw); if (p.down) Q.multiply(QD);
     if (run && !p.down) Q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.18));
     B.compose(P3, Q, S1);
-    PIM.torso.setMatrixAt(i, B); PIM.head.setMatrixAt(i, B);
+    PIM.torso.setMatrixAt(i, B); PIM.head.setMatrixAt(i, B); if (umb) umb.setMatrixAt(i, p.down ? ZERO : B);
     const amp = run ? 0.75 : 0.45;
     for (const k of ['legL', 'legR', 'armL', 'armR']) {
-      const pv = pivots[k]; const sgn = (k === 'legL' || k === 'armR') ? 1 : -1; const a = p.down ? 0 : sw * amp * sgn * (k.startsWith('arm') ? (run ? 1.2 : 0.9) : 1) + (k.startsWith('arm') && run ? -0.5 : 0);
+      const pv = pivots[k]; const sgn = (k === 'legL' || k === 'armR') ? 1 : -1; const a = p.down ? 0 : (umb && k === 'armR') ? -0.62 : sw * amp * sgn * (k.startsWith('arm') ? (run ? 1.2 : 0.9) : 1) + (k.startsWith('arm') && run ? -0.5 : 0);
       L4.makeRotationX(a); L4.setPosition(pv[0], pv[1], pv[2]); R4.multiplyMatrices(B, L4); PIM[k].setMatrixAt(i, R4);
     }
   };
@@ -382,7 +450,12 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
       for (const p of peds) {
         p.panic = Math.max(0, p.panic - dt); if (p.down) { placePed(p, t, dt); continue; }
         if (p.state === 'gone') { p.gone -= dt; if (p.gone <= 0) { p.state = 'wait'; p.panic = 0; p.delay = r() * 2.2; } placePed(p, t, dt); continue; }
-        if (p.state === 'flee') { const dx = p.fx - p.x, dz = p.fz - p.z, d = Math.hypot(dx, dz) || 1; const st = 3.4 * dt; p.x += dx / d * st; p.z += dz / d * st; p.fleeD += st; p.yaw = Math.atan2(dx, dz); p.y = 0.15;
+        if (p.state === 'flee') {
+          if (p.wp) { const w = p.wp[0]; const dx = w.x - p.x, dz = w.z - p.z, d = Math.hypot(dx, dz) || 1; const st = Math.min(d, 3.4 * dt); p.x += dx / d * st; p.z += dz / d * st; p.yaw = Math.atan2(dx, dz); p.y = 0.15; p.fleeD += st;
+            if (p.wp.length === 1 && d < 2.2) p.door.open = Math.max(p.door.open, 1.2);
+            if (d < 0.3) { p.wp.shift(); if (!p.wp.length) { p.state = 'gone'; p.gone = 30 + r() * 20; p.door.open = 2.2; } }
+            if (p.fleeD > 90) { p.state = 'gone'; p.gone = 30 + r() * 20; } placePed(p, t, dt); continue; }
+          const dx = p.fx - p.x, dz = p.fz - p.z, d = Math.hypot(dx, dz) || 1; const st = 3.4 * dt; p.x += dx / d * st; p.z += dz / d * st; p.fleeD += st; p.yaw = Math.atan2(dx, dz); p.y = 0.15;
           if (p.fleeD > 13 || d < 1) { p.state = 'gone'; p.gone = 30 + r() * 20; } placePed(p, t, dt); continue; }
         const cw = p.cw; const span = cw.b - cw.a + 2.4;
         if (p.state === 'wait') { if (inWin(ph, cw.open) && winAge(ph, cw.open) > p.delay && winAge(ph, cw.open) < 3.5) { p.state = 'cross'; p.u = 0; } }
@@ -390,6 +463,8 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
         placePed(p, t, dt);
       }
       for (const m of pimList) m.instanceMatrix.needsUpdate = true;
+      if (umb) umb.instanceMatrix.needsUpdate = true;
+      if (doorIM) { let ch = false; doors.forEach((d, i) => { if (d.open > 0 || d.was) { d.open = Math.max(0, d.open - dt); d.was = d.open > 0; placeDoor(d, i); ch = true; } }); if (ch) doorIM.instanceMatrix.needsUpdate = true; }
       // carros
       lanes.forEach((L, li) => {
         const list = byLane[li]; list.sort((a, b) => a.s - b.s); const n = list.length;
@@ -434,7 +509,61 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
         place(c);
       }
       im.instanceMatrix.needsUpdate = true;
-      if (lights) { lights.lg.attributes.position.needsUpdate = true; lights.fpool.instanceMatrix.needsUpdate = true; lights.rpool.instanceMatrix.needsUpdate = true; if (cam) lights.lmat.uniforms.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)); }
+      if (lights) { lights.lg.attributes.position.needsUpdate = true; lights.fpool.instanceMatrix.needsUpdate = true; lights.rpool.instanceMatrix.needsUpdate = true; if (lights.wall) { lights.wall.instanceMatrix.needsUpdate = true; lights.wall.instanceColor.needsUpdate = true; } if (cam) lights.lmat.uniforms.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)); }
+    },
+    setQuality() { },
+  };
+}
+
+// ---------- patrulha de seguranca ficticia: chega depois dos tiros, com luzes piscando ----------
+export function makePatrol(scene, q, opts = {}) {
+  const streets = [-210, -140, -70, 70, 140, 210];
+  const body = new THREE.MeshPhysicalMaterial({ vertexColors: true, color: 0xf4f4f2, roughness: 0.35, metalness: 0.3, clearcoat: 0.7 });
+  const stripeM = new THREE.MeshStandardMaterial({ color: 0xe0761a, roughness: 0.5 });
+  const barM = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 });
+  const lampA = new THREE.MeshBasicMaterial({ color: 0xffa020 }), lampB = new THREE.MeshBasicMaterial({ color: 0x2a6aff });
+  const geo = carGeometry(); const cars = [];
+  const NG = new THREE.BufferGeometry(); const gp = new Float32Array(2 * 2 * 3), gc = new Float32Array(2 * 2 * 3); NG.setAttribute('position', new THREE.BufferAttribute(gp, 3)); NG.setAttribute('color', new THREE.BufferAttribute(gc, 3));
+  const night = !!opts.night;
+  const gmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true, uniforms: { tG: { value: makeGlowTex() }, uScale: { value: 500 }, uS: { value: night ? 2.2 : 0.9 } },
+    vertexShader: 'uniform float uScale, uS; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(uS * uScale / -mv.z, 1.5, 70.0); }',
+    fragmentShader: 'uniform sampler2D tG; varying vec3 vC; void main(){ float a = texture2D(tG, gl_PointCoord).r; gl_FragColor = vec4(vC * a * a * 1.8, a); }' });
+  const glow = new THREE.Points(NG, gmat); glow.frustumCulled = false; scene.add(glow);
+  const pg = new THREE.PlaneGeometry(1, 1); pg.rotateX(-Math.PI / 2);
+  for (let k = 0; k < 2; k++) {
+    const g = new THREE.Group(); const m = new THREE.Mesh(geo, body); m.castShadow = true; g.add(m);
+    for (const sx of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.14, 4.0), stripeM); st.position.set(sx * 0.93, 0.72, 0); g.add(st); }
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.3), barM); bar.position.set(0, 1.53, -0.25); g.add(bar);
+    const la = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.26), lampA.clone()); la.position.set(-0.32, 1.62, -0.25); g.add(la);
+    const lb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.26), lampB.clone()); lb.position.set(0.32, 1.62, -0.25); g.add(lb);
+    const pool = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ map: makeGlowTex(), color: 0x000000, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); pool.scale.set(11, 1, 11); pool.position.y = 0.1; g.add(pool);
+    g.position.set(0, -200, 0); g.visible = false; scene.add(g); m.userData.surf = 'metal';
+    cars.push({ g, m, la, lb, pool, on: false, x: 0, z: 0, dirZ: 1, stop: 0, v: 0, delay: 0, ph: k * 0.37 });
+  }
+  let called = false;
+  return {
+    colliders: cars.map(c => c.m), _cars: cars,
+    call(focus) {
+      if (called || !focus) return; called = true;
+      const fx = clamp(focus.x, -220, 220), fz = clamp(focus.z, -700, 40); let S = streets[0]; for (const x of streets) if (Math.abs(x - fx) < Math.abs(S - fx)) S = x;
+      cars.forEach((c, k) => { const dir = k === 0 ? 1 : -1; c.dirZ = dir; c.x = S + (k === 0 ? 0.4 : -0.4); c.stop = fz - dir * (12 + k * 3); c.z = clamp(c.stop - dir * 230, -750, 75); c.v = 15; c.delay = 6 + k * 3.5; c.on = true; c.g.visible = false; });
+    },
+    siren(cp) { let lv = 0; for (const c of cars) if (c.on && c.delay <= 0) { const d = Math.hypot(c.x - cp.x, c.z - cp.z); lv = Math.max(lv, (c.v > 0.5 ? 1 : 0.35) * clamp(1 - d / 700, 0, 1)); } return lv; },
+    update(dt, t, wind, cam) {
+      let any = false;
+      cars.forEach((c, k) => {
+        if (!c.on) return; if (c.delay > 0) { c.delay -= dt; if (c.delay > 0) return; c.g.visible = true; if (k === 0) this.news = true; }
+        any = true; const rem = (c.stop - c.z) * c.dirZ;
+        const want = rem <= 0 ? 0 : Math.min(15, Math.sqrt(2 * 4.5 * Math.max(0, rem - 0.3))); c.v += Math.sign(want - c.v) * Math.min(Math.abs(want - c.v), (want > c.v ? 4 : 7) * dt); if (rem <= 0) c.v = 0;
+        c.z += c.dirZ * c.v * dt; c.g.position.set(c.x, 0.05, c.z); c.g.rotation.y = c.dirZ > 0 ? 0 : Math.PI;
+        const f = Math.floor((t + c.ph) * 5) % 2; const A = f === 0 ? 1 : 0.12, B = f === 1 ? 1 : 0.12;
+        c.la.material.color.setRGB(A * 1.0 * 3, A * 0.63 * 3, A * 0.12 * 3); c.lb.material.color.setRGB(B * 0.16 * 3, B * 0.42 * 3, B * 3);
+        c.pool.material.color.setRGB(A * 0.5 + B * 0.05, A * 0.3 + B * 0.15, A * 0.05 + B * 0.5).multiplyScalar(night ? 0.9 : 0.25);
+        const s = Math.sin(c.g.rotation.y), co = Math.cos(c.g.rotation.y);
+        for (let j = 0; j < 2; j++) { const lx = j ? 0.32 : -0.32; const o = (k * 2 + j) * 3; gp[o] = c.x + co * lx + s * -0.25; gp[o + 1] = 1.66; gp[o + 2] = c.z - s * lx + co * -0.25; const on = j ? B : A; gc[o] = (j ? 0.2 : 1.0) * on; gc[o + 1] = (j ? 0.45 : 0.6) * on; gc[o + 2] = (j ? 1.0 : 0.1) * on; }
+      });
+      NG.attributes.position.needsUpdate = true; NG.attributes.color.needsUpdate = true; glow.visible = any;
+      if (cam) gmat.uniforms.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
     },
     setQuality() { },
   };

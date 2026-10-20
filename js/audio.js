@@ -102,6 +102,13 @@ export class Sfx {
       const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(f2); f2.connect(g); g.connect(this.master); s.start(); this.rainGain = g; }
     const tgt = level ? 0.11 : 0; if (this.rainLvl !== tgt) { this.rainLvl = tgt; this.rainGain.gain.setTargetAtTime(tgt, this.ctx.currentTime, 0.5); }
   }
+  // sirene suave da patrulha de seguranca (ficticia), volume pela distancia
+  setSiren(level, t) {
+    if (!this.ctx) return;
+    if (!this.sirenGain) { if (!level) return; const c = this.ctx; const o = c.createOscillator(); o.type = 'triangle'; const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800; const g = c.createGain(); g.gain.value = 0; o.connect(f); f.connect(g); g.connect(this.master); o.start(); this.sirenGain = g; this.sirenOsc = o; }
+    const now = this.ctx.currentTime; this.sirenGain.gain.setTargetAtTime(Math.min(0.06, level * 0.06), now, 0.25);
+    if (level) this.sirenOsc.frequency.setTargetAtTime(640 + 220 * Math.sin(t * 3.4), now, 0.05);
+  }
   setWind(level, t) {
     if (!this.windGain) return;
     const gust = 0.6 + 0.4 * Math.sin(t * 0.37) * Math.sin(t * 0.13 + 1);
