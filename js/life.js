@@ -440,7 +440,7 @@ export function makeSplashes(scene, q) {
       void main(){ float rate = 1.6 + a.z * 1.2; float k = uT * rate + a.x * 7.0; float ci = floor(k); vL = fract(k);
         float rr = mix(uR0, uR1, a.w); vec3 c = mix(uC0, uC1, a.w); float an = h(ci * 1.7 + a.y * 91.0) * 6.2832; float rd = sqrt(h(ci * 3.1 + a.x * 57.0)) * rr;
         vec3 p = c + vec3(cos(an) * rd, 0.03, sin(an) * rd); vec4 mv = viewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
-        gl_PointSize = clamp((0.08 + vL * 0.32) * uScale / -mv.z, 1.0, 40.0); }`,
+        gl_PointSize = clamp((0.05 + vL * 0.17) * uScale / -mv.z, 1.0, 14.0); }`,
     fragmentShader: `varying float vL; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float ring = smoothstep(0.55, 0.85, d) * (1.0 - smoothstep(0.85, 1.0, d)); float a = (ring + (1.0 - d) * 0.25 * (1.0 - vL)) * (1.0 - vL) * 0.6; if (a < 0.01) discard; gl_FragColor = vec4(0.75, 0.8, 0.88, a); }` });
   const pts = new THREE.Points(g, mat); pts.frustumCulled = false; scene.add(pts);
   const setQ = (qq) => g.setDrawRange(0, N[qq] || N.media); setQ(q);
@@ -459,8 +459,8 @@ export function makeLampGlow(scene, heads, wet) {
   const n = heads.length; if (!n) return null; const pos = new Float32Array(n * 3); heads.forEach((h, i) => { pos[i * 3] = h.x; pos[i * 3 + 1] = h.y; pos[i * 3 + 2] = h.z; });
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { tG: { value: makeGlowTex() }, uScale: { value: 500 }, uT: { value: 0 } },
-    vertexShader: 'uniform float uScale; varying float vF; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; vF = clamp(1.0 - (-mv.z - 600.0) / 500.0, 0.25, 1.0); gl_PointSize = clamp(3.4 * uScale / -mv.z, 2.0, 220.0); }',
-    fragmentShader: 'uniform sampler2D tG; varying float vF; void main(){ float a = texture2D(tG, gl_PointCoord).r; gl_FragColor = vec4(vec3(1.0, 0.8, 0.52) * a * 1.5 * vF, a); }' });
+    vertexShader: 'uniform float uScale; varying float vF; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; vF = clamp(1.0 - (-mv.z - 600.0) / 500.0, 0.25, 1.0); gl_PointSize = clamp(1.5 * uScale / -mv.z, 2.0, 70.0); }',
+    fragmentShader: 'uniform sampler2D tG; varying float vF; void main(){ float a = texture2D(tG, gl_PointCoord).r; gl_FragColor = vec4(vec3(1.0, 0.8, 0.52) * a * a * 1.2 * vF, a); }' });
   const pts = new THREE.Points(g, mat); pts.frustumCulled = false; scene.add(pts);
   // manchas no chao (mais fortes com chao molhado)
   const pg = new THREE.PlaneGeometry(1, 1); pg.rotateX(-Math.PI / 2);

@@ -302,7 +302,7 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 #b-nv.on { background: radial-gradient(circle at 35% 30%, rgba(150, 255, 170, 0.7), rgba(20, 120, 50, 0.6)); }
 @media (max-height: 480px) { #b-nv { width: 62px; height: 62px; bottom: 152px; right: calc(218px + var(--safe-r)); font-size: 10px; } }
 
-#scope-wind { position: absolute; left: 50%; top: 10%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; color: #c9ff9a; text-shadow: 0 0 6px rgba(0, 0, 0, 0.95), 0 1px 2px #000; white-space: nowrap; }
+#scope-wind { position: absolute; left: 50%; top: 19%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; color: #c9ff9a; text-shadow: 0 0 6px rgba(0, 0, 0, 0.95), 0 1px 2px #000; white-space: nowrap; }
 #scope-wind .pole { position: relative; width: 22px; height: 20px; border-left: 2px solid #c9ff9a; }
 #sw-flag { position: absolute; left: 0; top: 1px; width: 18px; height: 10px; background: linear-gradient(90deg, #ff7a3a, #ffd0a0); transform-origin: 0 0; transition: transform 0.25s; }
 #scope-wind b { display: none; color: #ffb35a; }
