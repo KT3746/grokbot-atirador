@@ -27,6 +27,12 @@ function grayTex(kind) {
   for (let i = 0; i < W; i += 2) { x.fillStyle = 'rgba(0,0,0,0.05)'; x.fillRect(i, 0, 1, W); x.fillRect(0, i, W, 1); }
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+// pele: luz do ceu menos azul, um pouco de calor de dentro (subsuperficie barata)
+function patchSkin(m) {
+  patch(m); const base = m.onBeforeCompile;
+  m.onBeforeCompile = (sh) => { base(sh); sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= vec3(1.1, 0.93, 0.78); reflectedLight.indirectSpecular *= vec3(1.0, 0.9, 0.8);\ntotalEmissiveRadiance += diffuseColor.rgb * vec3(0.085, 0.035, 0.02);'); };
+  m.customProgramCacheKey = () => 'rim-skin'; return m;
+}
 let MATS = null;
 function mats() {
   if (MATS) return MATS;
@@ -34,6 +40,7 @@ function mats() {
     camo: patch(new THREE.MeshStandardMaterial({ vertexColors: true, map: grayTex('camo'), roughness: 0.92 })),
     cloth: patch(new THREE.MeshStandardMaterial({ vertexColors: true, map: grayTex('plain'), roughness: 0.88 })),
     hard: patch(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.15 })),
+    skin: patchSkin(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.0, envMapIntensity: 0.55 })),
   };
   return MATS;
 }
@@ -55,7 +62,7 @@ function glintMat() {
 // ---------- construtor de segmentos mesclados ----------
 const E = new THREE.Euler(), Q = new THREE.Quaternion(), M4 = new THREE.Matrix4(), V1 = new THREE.Vector3(), V2 = new THREE.Vector3();
 class Seg {
-  constructor() { this.parts = { camo: [], cloth: [], hard: [] }; }
+  constructor() { this.parts = { camo: [], cloth: [], hard: [], skin: [] }; }
   add(geo, color, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
     let g = geo.index ? geo.toNonIndexed() : geo.clone();
     E.set(rx, ry, rz); Q.setFromEuler(E); M4.compose(V1.set(x, y, z), Q, V2.set(sx, sy, sz)); g.applyMatrix4(M4);
@@ -67,7 +74,7 @@ class Seg {
   }
   build(parent) {
     const M = mats();
-    for (const k of ['camo', 'cloth', 'hard']) { const list = this.parts[k]; if (!list.length) continue; const g = mergeGeometries(list); list.forEach(x => x.dispose()); const m = new THREE.Mesh(g, M[k]); m.castShadow = true; parent.add(m); }
+    for (const k of ['camo', 'cloth', 'hard', 'skin']) { const list = this.parts[k]; if (!list.length) continue; const g = mergeGeometries(list); list.forEach(x => x.dispose()); const m = new THREE.Mesh(g, M[k]); m.castShadow = true; parent.add(m); }
   }
 }
 const GC = {};
@@ -144,27 +151,27 @@ export class Actor {
       T.add(rbox(0.07, 0.04, 0.02, 0.008), 0x8c1c1a, 'hard', -0.1, 0.38, 0.13); // emblema dos Corvos Negros
     }
     if (L.pack) T.add(rbox(0.3, 0.38, 0.17, 0.05), L.vest || 0x4a4030, 'cloth', 0, 0.27, -0.2).add(rbox(0.24, 0.12, 0.08, 0.03), L.vest || 0x4a4030, 'cloth', 0, 0.13, -0.3).add(cyl(0.05, 0.05, 0.3, 8), 0x3a3a30, 'cloth', 0, 0.48, -0.2, 0, 0, Math.PI / 2);
-    T.add(cyl(0.055, 0.062, 0.1, 10), skin, 'hard', 0, 0.58, 0.0);
+    T.add(cyl(0.055, 0.062, 0.1, 10), skin, 'skin', 0, 0.58, 0.0);
     if (L.optic) T.add(rbox(0.1, 0.05, 0.06, 0.015), dark, 'hard', 0.14, 0.12, 0.12);
     T.build(torso);
     hit(box(0.42, 0.56, 0.3), 'torso', this, torso, 0, 0.28, 0);
     // cabeca
     const head = this.head = new THREE.Group(); head.position.y = 0.62; torso.add(head);
     const H = new Seg(); const bal = L.head === 'balaclava';
-    H.add(sphere(0.108), bal ? 0x1b1b1d : skin, bal ? 'cloth' : 'hard', 0, 0.11, 0, 0, 0, 0, 0.9, 1.08, 0.98);
-    H.add(sphere(0.04, 8, 6), bal ? 0x1b1b1d : skin, 'hard', 0, 0.035, 0.035, 0, 0, 0, 1.4, 0.9, 1.1); // queixo
-    H.add(box(0.026, 0.045, 0.04), bal ? 0x1b1b1d : skin, 'hard', 0, 0.1, 0.1, -0.2);
-    H.add(sphere(0.022, 6, 5), skin, 'hard', 0.1, 0.1, -0.005, 0, 0, 0, 0.5, 1, 0.8).add(sphere(0.022, 6, 5), skin, 'hard', -0.1, 0.1, -0.005, 0, 0, 0, 0.5, 1, 0.8);
+    H.add(sphere(0.108), bal ? 0x1b1b1d : skin, bal ? 'cloth' : 'skin', 0, 0.11, 0, 0, 0, 0, 0.9, 1.08, 0.98);
+    H.add(sphere(0.04, 8, 6), bal ? 0x1b1b1d : skin, 'skin', 0, 0.035, 0.035, 0, 0, 0, 1.4, 0.9, 1.1); // queixo
+    H.add(box(0.026, 0.045, 0.04), bal ? 0x1b1b1d : skin, 'skin', 0, 0.1, 0.1, -0.2);
+    H.add(sphere(0.022, 6, 5), skin, 'skin', 0.1, 0.1, -0.005, 0, 0, 0, 0.5, 1, 0.8).add(sphere(0.022, 6, 5), skin, 'skin', -0.1, 0.1, -0.005, 0, 0, 0, 0.5, 1, 0.8);
     // rosto: olhos com pupila, sobrancelhas, boca, faces e barba em alguns
     const eyeY = 0.128, brow = r() < 0.5 ? 0x2a1c12 : 0x15110e;
-    if (bal) H.add(box(0.13, 0.034, 0.02), skin, 'hard', 0, eyeY, 0.098);
+    if (bal) H.add(box(0.13, 0.034, 0.02), skin, 'skin', 0, eyeY, 0.098);
     for (const sx of [1, -1]) {
       H.add(sphere(0.0135, 8, 6), 0xf2efe8, 'hard', 0.036 * sx, eyeY, 0.093, 0, 0, 0, 1.25, 0.8, 0.6).add(sphere(0.0075, 6, 5), 0x1d140e, 'hard', 0.036 * sx, eyeY, 0.1, 0, 0, 0, 1, 1, 0.5);
       if (!bal) H.add(rbox(0.034, 0.009, 0.012, 0.004), brow, 'hard', 0.037 * sx, eyeY + 0.024, 0.098, 0, 0, -0.12 * sx);
     }
     if (!bal) {
       H.add(rbox(0.04, 0.008, 0.01, 0.003), 0x6a3a30, 'hard', 0, 0.062, 0.096);
-      H.add(sphere(0.03, 8, 6), skin, 'hard', 0.05, 0.085, 0.07, 0, 0, 0, 1, 0.8, 0.6).add(sphere(0.03, 8, 6), skin, 'hard', -0.05, 0.085, 0.07, 0, 0, 0, 1, 0.8, 0.6);
+      H.add(sphere(0.03, 8, 6), skin, 'skin', 0.05, 0.085, 0.07, 0, 0, 0, 1, 0.8, 0.6).add(sphere(0.03, 8, 6), skin, 'skin', -0.05, 0.085, 0.07, 0, 0, 0, 1, 0.8, 0.6);
       if (this.kind !== 'hostage' && r() < 0.35) H.add(sphere(0.07, 12, 8), r() < 0.5 ? 0x2a1c12 : 0x4a3426, 'cloth', 0, 0.045, 0.04, 0, 0, 0, 1.25, 0.75, 1.0).add(rbox(0.05, 0.012, 0.014, 0.004), 0x2a1c12, 'cloth', 0, 0.077, 0.098);
     }
     if (L.head === 'helmet') { H.add(helmetGeo, 0x3a3d36, 'hard', 0, 0.12, -0.005, 0, 0, 0, 1, 0.95, 1.1).add(cyl(0.145, 0.15, 0.02, 18), 0x33362f, 'hard', 0, 0.13, -0.005, 0, 0, 0, 1, 1, 1.08); if (L.goggles) H.add(rbox(0.19, 0.045, 0.04, 0.015), 0x111111, 'hard', 0, 0.21, 0.1); }
@@ -184,10 +191,10 @@ export class Actor {
       A.build(sh);
       const el = new THREE.Group(); el.position.y = -0.28; sh.add(el);
       const hc = L.gloves ? 0x1f201d : skin;
-      new Seg().add(limbGeo(0.056, 0.042, 0.25), L.coat || L.mat === 'camo' ? L.uni : skin, L.coat || L.mat === 'camo' ? mUni : 'hard', 0, 0, 0)
-        .add(rbox(0.05, 0.07, 0.03, 0.012), hc, 'hard', 0, -0.285, 0.004)
-        .add(rbox(0.048, 0.05, 0.026, 0.01), hc, 'hard', 0, -0.33, 0.016, 0.55)
-        .add(capsule(0.011, 0.03), hc, 'hard', -0.026 * side, -0.29, 0.024, 0.6, 0, 0.5 * side)
+      new Seg().add(limbGeo(0.056, 0.042, 0.25), L.coat || L.mat === 'camo' ? L.uni : skin, L.coat || L.mat === 'camo' ? mUni : 'skin', 0, 0, 0)
+        .add(rbox(0.05, 0.07, 0.03, 0.012), hc, L.gloves ? 'hard' : 'skin', 0, -0.285, 0.004)
+        .add(rbox(0.048, 0.05, 0.026, 0.01), hc, L.gloves ? 'hard' : 'skin', 0, -0.33, 0.016, 0.55)
+        .add(capsule(0.011, 0.03), hc, L.gloves ? 'hard' : 'skin', -0.026 * side, -0.29, 0.024, 0.6, 0, 0.5 * side)
         .add(cyl(0.024, 0.024, 0.02, 10), L.gloves ? 0x2c2d29 : (L.coat || L.mat === 'camo' ? L.uni : skin), 'hard', 0, -0.255, 0).build(el);
       return { sh, el };
     };

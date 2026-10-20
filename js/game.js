@@ -261,6 +261,9 @@ export class Game {
       this.mode = 'killcam'; this.ui.killcam(true, Math.round(pred.dist)); sfx.whoosh();
       // gravacao para o replay na tela de resultado
       const nodes = []; pred.actor.root.traverse(o => nodes.push(o)); const vr = pred.actor.ride ? pred.actor.ride.root : null;
+      // atores perto do alvo tambem entram na gravacao
+      const near = this.actors.filter(a => a !== pred.actor && a.pos.distanceTo(pred.actor.pos) < 30).sort((a, b) => a.pos.distanceTo(pred.actor.pos) - b.pos.distanceTo(pred.actor.pos)).slice(0, 6);
+      for (const a of near) a.root.traverse(o => nodes.push(o));
       this.rec = { frames: [], nodes, veh: vr, dist: Math.round(pred.dist), hitFrame: -1, hitPoint: null, hitDir: null, mission: this.mission.id };
     }
     if (this.ammo === 0) setTimeout(() => this.reload(), (s.bolt + 0.1) * 1000);
@@ -500,18 +503,29 @@ export class Game {
     if (!this.hasReplay() || this.mode !== 'result') return false;
     const rec = this.lastRec; const snap = new Float32Array(rec.nodes.length * 10);
     rec.nodes.forEach((o, i) => { o.position.toArray(snap, i * 10); o.quaternion.toArray(snap, i * 10 + 3); o.scale.toArray(snap, i * 10 + 7); });
-    this.replay = { rec, i: 0, acc: 0, snap, veh: rec.veh ? [rec.veh.position.clone(), rec.veh.quaternion.clone()] : null, cam: [this.camera.position.clone(), this.camera.quaternion.clone(), this.camera.fov], hit: false };
+    this.replay = { rec, i: 0, acc: 0, speed: 1, camMode: 0, snap, veh: rec.veh ? [rec.veh.position.clone(), rec.veh.quaternion.clone()] : null, cam: [this.camera.position.clone(), this.camera.quaternion.clone(), this.camera.fov], hit: false };
     this.mode = 'replay'; this.rifle.visible = false; this.ui.replay(true, rec.dist); sfx.whoosh(); this.applyRecFrame(rec.frames[0]);
     return true;
   }
   updateReplay(dt) {
-    const P = this.replay, R = P.rec; P.acc += dt;
+    const P = this.replay, R = P.rec; P.acc += dt * P.speed;
     while (P.i < R.frames.length - 1 && P.acc >= R.frames[P.i].dt) { P.acc -= R.frames[P.i].dt; P.i++; }
     const f = R.frames[P.i]; this.applyRecFrame(f);
+    if (P.camMode === 1) {
+      // segunda camera: de lado da bala, depois parada perto do alvo
+      const cam = this.camera; const tgt = R.nodes[0].getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.9, 0));
+      if (f.b) { const bp = f.b[0]; const d = tgt.clone().sub(bp); d.y = 0; if (d.lengthSq() < 1e-4) d.set(0, 0, -1); d.normalize(); const side = new THREE.Vector3(-d.z, 0, d.x);
+        cam.position.copy(bp).addScaledVector(side, 2.4).addScaledVector(d, -0.6).add(new THREE.Vector3(0, 0.5, 0)); cam.lookAt(bp.clone().addScaledVector(d, 1.5)); }
+      else { if (!P.side) { const toCam = this.world.player.pos.clone().sub(tgt); toCam.y = 0; toCam.normalize(); P.side = new THREE.Vector3(-toCam.z, 0, toCam.x); }
+        cam.position.copy(tgt).addScaledVector(P.side, 5.5).add(new THREE.Vector3(0, 1.2, 0)); const gy = this.world.groundAt(cam.position.x, cam.position.z) + 0.6; if (cam.position.y < gy) cam.position.y = gy; cam.lookAt(tgt); }
+      cam.fov = 40; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    }
     if (!P.hit && R.hitFrame >= 0 && P.i >= R.hitFrame) { P.hit = true; this.fx.impact(R.hitPoint, R.hitDir.clone().negate(), 'body', 0.35); sfx.impact('body', 100); }
-    this.fx.update(dt * 0.3);
+    this.fx.update(dt * 0.3 * P.speed);
     if (P.i >= R.frames.length - 1) this.stopReplay();
   }
+  replaySlow() { if (this.replay) { this.replay.speed = this.replay.speed < 1 ? 1 : 0.35; this.ui.replayState(this.replay); } }
+  replayCam() { if (this.replay) { this.replay.camMode = 1 - this.replay.camMode; this.replay.side = null; this.ui.replayState(this.replay); } }
   stopReplay() {
     const P = this.replay; if (!P) return; const R = P.rec;
     R.nodes.forEach((o, i) => { o.position.fromArray(P.snap, i * 10); o.quaternion.fromArray(P.snap, i * 10 + 3); o.scale.fromArray(P.snap, i * 10 + 7); }); R.nodes[0].updateMatrixWorld(true);

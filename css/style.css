@@ -314,3 +314,10 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 #r-replay { border-color: rgba(255, 210, 120, 0.8); color: #ffd27a; white-space: nowrap; font-size: 15px; padding-left: 10px; padding-right: 10px; }
 #r-replay.hidden { display: none; }
 #letterbox.rp .lb-label { color: #ffd27a; }
+
+#hud.kc { visibility: hidden; }
+#hud.kc * { visibility: hidden !important; }
+#rp-ctl { position: fixed; right: calc(14px + var(--safe-r, 0px)); top: 14px; z-index: 60; display: flex; gap: 8px; pointer-events: auto; }
+#rp-ctl.hidden { display: none; }
+.rpb { min-width: 74px; min-height: 44px; padding: 6px 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 210, 120, 0.7); color: #ffd27a; font-weight: 800; font-size: 13px; letter-spacing: 0.06em; }
+.rpb.on { background: rgba(255, 190, 80, 0.85); color: #1a1208; }
