@@ -9,6 +9,16 @@ Jogue: https://kt3746.github.io/grokbot-atirador/
 - Celular: arraste para mirar, botões grandes ZOOM, ATIRAR, PRENDER RESPIRAÇÃO e RECARREGAR
 - PC: mouse com trava do ponteiro, botão direito abre a luneta, rodinha muda o zoom, Shift prende a respiração, R recarrega
 
+## Novidades da versão 1.6.0
+
+- Guardas investigam: quando ouvem um tiro (depende da distância), andam até o lugar do som, procuram e voltam. Se acharem um corpo, chamam o alerta. Um sinal de ? amarelo mostra quem está investigando.
+- À noite, uma lanterna caída perto de um corpo chama a atenção de longe.
+- Lanterna com facho mais largo e suave, que aparece de lado. Quando a lanterna aponta para você, ela ofusca por um instante.
+- Replay com barra para arrastar e ver qualquer parte do tiro, e uma nova CÂMERA 3: do alvo, olhando a bala chegar.
+- Pedestres com guarda-chuva quando chove. Quando fogem, correm até a porta de um prédio, a porta abre e eles entram.
+- À noite, a luz dos faróis aparece nas paredes ao lado da rua (só na qualidade média e alta).
+- Depois de um tiro na cidade chega uma patrulha de segurança fictícia, com luzes piscando e sirene baixa.
+
 ## Novidades da versão 1.5.0
 
 - Nova missão de noite na montanha: Patrulha da Meia-Noite. Alguns guardas andam com lanterna, e o facho aparece na mira e na visão noturna.
