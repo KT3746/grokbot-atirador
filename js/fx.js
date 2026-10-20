@@ -38,8 +38,8 @@ export class FX {
     const k = Math.max(1, distScale);
     const col = { sand: 0xd8b888, dirt: 0x9a8668, stone: 0xb0a898, metal: 0x9aa0a8, wood: 0x8a7050, body: 0x4a4542, glass: 0xd8ecff }[surf] || 0xaaaaaa;
     const n = normal || new THREE.Vector3(0, 1, 0);
-    const nP = surf === 'body' ? 3 : 7;
-    for (let i = 0; i < nP; i++) { const v = n.clone().multiplyScalar(1.5 + Math.random() * 2.5).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 1.8, (Math.random() - 0.5) * 2)); this.spawn(p, v, { size: 0.35 * k, grow: 2.2, life: 1.0 + Math.random() * 0.8, color: col, opacity: 0.55, drag: 2.2, g: -0.4 }); }
+    const tiny = surf === 'body' && distScale < 0.5; const nP = surf === 'body' ? (tiny ? 2 : 3) : 7;
+    for (let i = 0; i < nP; i++) { const v = n.clone().multiplyScalar(1.5 + Math.random() * 2.5).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 1.8, (Math.random() - 0.5) * 2)); if (tiny) v.multiplyScalar(0.25); this.spawn(p, v, tiny ? { size: 0.06, grow: 0.45, life: 0.7, color: 0x3a3634, opacity: 0.3, drag: 3, g: -0.2 } : { size: 0.35 * k, grow: 2.2, life: 1.0 + Math.random() * 0.8, color: col, opacity: 0.55, drag: 2.2, g: -0.4 }); }
     if (surf === 'metal' || surf === 'stone' || surf === 'glass') for (let i = 0; i < 10; i++) { const v = n.clone().multiplyScalar(4).add(new THREE.Vector3((Math.random() - 0.5) * 9, Math.random() * 6, (Math.random() - 0.5) * 9)); this.spawn(p, v, { size: 0.12 * k, grow: 0.1, life: 0.25 + Math.random() * 0.25, spark: true, g: 9.8, drag: 0.5 }); }
     // anel de poeira rente a superficie e estilhacos
     if (surf !== 'body' && surf !== 'metal' && surf !== 'glass') {
