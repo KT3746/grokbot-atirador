@@ -85,9 +85,7 @@ export function makeBirds(scene, center, count, opts = {}) {
         S.set(1, 1 + fl * 6 * glide, 1); M.compose(P, Q, S); im.setMatrixAt(i, M);
       }
       im.instanceMatrix.needsUpdate = true;
-      if (lights) { lights.lg.attributes.position.needsUpdate = true; lights.fpool.instanceMatrix.needsUpdate = true; lights.rpool.instanceMatrix.needsUpdate = true; if (cam) lights.lmat.uniforms.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)); }
     },
-    setLightScale(v) { if (lights) lights.lmat.uniforms.uScale.value = v; },
     setQuality() { },
   };
 }
@@ -436,6 +434,7 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
         place(c);
       }
       im.instanceMatrix.needsUpdate = true;
+      if (lights) { lights.lg.attributes.position.needsUpdate = true; lights.fpool.instanceMatrix.needsUpdate = true; lights.rpool.instanceMatrix.needsUpdate = true; if (cam) lights.lmat.uniforms.uScale.value = LIFE.height * LIFE.pr / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)); }
     },
     setQuality() { },
   };
