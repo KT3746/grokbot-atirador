@@ -9,6 +9,16 @@ Jogue: https://kt3746.github.io/grokbot-atirador/
 - Celular: arraste para mirar, botões grandes ZOOM, ATIRAR, PRENDER RESPIRAÇÃO e RECARREGAR
 - PC: mouse com trava do ponteiro, botão direito abre a luneta, rodinha muda o zoom, Shift prende a respiração, R recarrega
 
+## Novidades da versão 1.5.0
+
+- Nova missão de noite na montanha: Patrulha da Meia-Noite. Alguns guardas andam com lanterna, e o facho aparece na mira e na visão noturna.
+- Carros com faróis brancos e lanternas vermelhas à noite, com reflexo no chão molhado quando chove.
+- Pedestres agora andam mexendo braços e pernas. Há mais faixas de pedestre na cidade.
+- Depois de um tiro ou de um civil atingido, as pessoas correm e entram nos prédios. Elas voltam depois de um tempo.
+- Pele com cor mais quente e menos azulada. O pescoço não fica mais pálido.
+- Câmera da bala sem clarão branco na cabeça, e o painel some de verdade nas faixas pretas.
+- Replay melhor: grava os inimigos perto do alvo, tem botão LENTO e uma segunda câmera (CÂMERA 2).
+
 ## Novidades da versão 1.4.0
 
 - As setas que mostram inimigos fora da tela não ficam mais em cima dos botões.
