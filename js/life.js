@@ -1,7 +1,7 @@
 // Vida no cenario: nuvens, passaros, colunas de fumaca, grama e sombra de contato barata
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { rng, fbm, clamp } from './util.js?v=1.5.0';
+import { rng, fbm, clamp } from './util.js?v=1.6.0';
 
 export const LIFE = { pr: 1, height: 800, focus: new THREE.Vector3(0, 0, -200), floor: new THREE.Vector3() };
 const QN = { baixa: 0, media: 1, alta: 2 };

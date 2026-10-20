@@ -1,6 +1,6 @@
 // Efeitos visuais: tracante, clarao do disparo, poeira, faiscas, cartuchos, marcas
 import * as THREE from 'three';
-import { spriteTex } from './textures.js?v=1.5.0';
+import { spriteTex } from './textures.js?v=1.6.0';
 
 export class FX {
   constructor(scene) {
