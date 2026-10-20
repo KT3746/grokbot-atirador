@@ -248,7 +248,7 @@ export class Game {
     const pred = this.predict(b);
     if (pred && pred.actor && this.wouldFinish(pred.actor, pred.part)) {
       const flight = Math.max(0.15, pred.t);
-      this.killcam = { b, actor: pred.actor, t: 0, phase: 'fly', flight, scale: clamp(flight / 2.4, 0.03, 0.25), dist: pred.dist };
+      this.killcam = { b, actor: pred.actor, t: 0, phase: 'fly', flight, scale: clamp(flight / 2.4, 0.03, 0.25), dist: pred.dist, vel: pred.actor.vel ? pred.actor.vel.clone() : new THREE.Vector3(), veh: pred.actor.ride || null };
       this.mode = 'killcam'; this.ui.killcam(true, Math.round(pred.dist)); sfx.whoosh();
     }
     if (this.ammo === 0) setTimeout(() => this.reload(), (s.bolt + 0.1) * 1000);
@@ -287,14 +287,25 @@ export class Game {
     return { dist: 600, actor: null, none: true };
   }
   windAccel(s) { return tmpV2.copy(this.wind).multiplyScalar(1.0 * (s.windRes || 1)); }
+  // previsao do tiro: alvos que andam (a pe ou no caminhao) sao avancados no tempo com a velocidade atual
   predict(b) {
-    const p = b.p.clone(), v = b.v.clone(); const targets = this.hitTargets(); let t = 0;
-    const wa = this.windAccel(b.s).clone();
+    const p = b.p.clone(), v = b.v.clone(); let t = 0;
+    const vehCols = new Set(); for (const vh of (this.vehicles || [])) vh.colliders.forEach(c => vehCols.add(c));
+    const stat = this.world.colliders.filter(c => !vehCols.has(c));
+    const movers = [];
+    for (const a of this.actors) if (a.alive) { const vel = a.vel && a.vel.lengthSq() > 0.01 ? a.vel : null; if (vel) movers.push({ objs: a.hitboxes, vel }); else stat.push(...a.hitboxes); }
+    for (const vh of (this.vehicles || [])) { if (vh.vel && vh.vel.lengthSq() > 0.01) movers.push({ objs: vh.colliders, vel: vh.vel }); else stat.push(...vh.colliders); }
+    const wa = this.windAccel(b.s).clone(); const q0 = new THREE.Vector3(), q1 = new THREE.Vector3(), dd = new THREE.Vector3();
     for (let i = 0; i < 400; i++) {
-      const dt = 1 / 120; const p1 = p.clone().addScaledVector(v, dt);
-      const h = this.castSeg(p, p1, targets);
-      if (h) { const pt = h.point; return { t: t + dt * (h.distance / p.distanceTo(p1)), actor: h.object && h.object.userData.actor, part: h.object && h.object.userData.part, dist: pt.distanceTo(b.start) }; }
-      v.y -= GRAV * dt; v.addScaledVector(wa, dt); p.copy(p1); t += dt; if (p.distanceTo(b.start) > 1800) break;
+      const dt = 1 / 120; const p1 = p.clone().addScaledVector(v, dt); const seg = p.distanceTo(p1);
+      let best = this.castSeg(p, p1, stat); let bestK = best ? best.distance / seg : 2;
+      for (const m of movers) {
+        q0.copy(p).addScaledVector(m.vel, -t); q1.copy(p1).addScaledVector(m.vel, -(t + dt)); const L = dd.subVectors(q1, q0).length();
+        this.ray.set(q0, dd.divideScalar(L)); this.ray.far = L; this.ray.near = 0;
+        const hs = this.ray.intersectObjects(m.objs, false); if (hs.length && hs[0].distance / L < bestK) { bestK = hs[0].distance / L; best = hs[0]; }
+      }
+      if (best) { const tt = t + dt * Math.min(1, bestK); const pt = p.clone().lerp(p1, Math.min(1, bestK)); return { t: tt, actor: best.object && best.object.userData.actor, part: best.object && best.object.userData.part, dist: pt.distanceTo(b.start) }; }
+      v.y -= GRAV * dt; v.addScaledVector(wa, dt); v.multiplyScalar(1 - 0.015 * dt); p.copy(p1); t += dt; if (p.distanceTo(b.start) > 1800) break;
     }
     return null;
   }
@@ -417,9 +428,16 @@ export class Game {
     const pp = cam.position;
     // na camera lenta o alvo fica parado ate a bala chegar: o tiro mostrado e o tiro previsto
     const freeze = this.mode === 'killcam' && this.killcam && this.killcam.phase === 'fly';
-    const adt = freeze ? 0 : dt;
-    if (this.vehicles) for (const v of this.vehicles) v.update(adt);
-    for (const a of this.actors) { a.update(adt, pp); a.root.updateMatrixWorld(); }
+    const adt = freeze ? 0 : dt; const K = freeze ? this.killcam : null;
+    // camera lenta: so o alvo continua andando, em linha reta, como na previsao
+    if (this.vehicles) for (const v of this.vehicles) { if (K && K.veh === v) { v.root.position.addScaledVector(K.vel, dt); v.root.updateMatrixWorld(); } else v.update(adt); }
+    for (const a of this.actors) {
+      a._pp = a._pp || a.pos.clone(); a._pp.copy(a.pos);
+      if (K && K.actor === a && !a.ride) a.pos.addScaledVector(K.vel, dt);
+      a.update(adt, pp); a.root.updateMatrixWorld();
+      if (adt > 0) { const nv = tmpV.subVectors(a.pos, a._pp).divideScalar(adt); a.vel = a.vel || new THREE.Vector3(); if (nv.lengthSq() < 400) a.vel.lerp(nv, Math.min(1, adt * 12)); }
+    }
+    if (this.vehicles) for (const v of this.vehicles) { v.vel = v.vel || new THREE.Vector3(); if (adt > 0) v.vel.set(Math.sin(v.heading) * v.v, 0, Math.cos(v.heading) * v.v); }
     this.stepBullets(dt);
     this.fx.update(dt);
     for (const f of this.world.flags) f.update(this.t, this.wind);
