@@ -188,6 +188,20 @@ export const MISSIONS = [
       { kind: 'civil', a: 'vila', path: [[-20, -35], [20, -35]], speed: 0.9, wait: 3 },
     ],
   },
+  {
+    id: 'm4', map: 'montanha', name: 'Patrulha da Meia-Noite', time: 240, par: 120, reward: 4000, req: 'm3',
+    sky: { elev: -8, azim: 120, turb: 2, ray: 0.6, fog: 0.0009, exposure: 0.95, night: true, dark: true },
+    wind: { speed: 2.5, dir: 140 },
+    brief: 'Meia-noite no vale. Os Corvos Negros fazem a ronda do acampamento com lanternas. Derrube os cinco antes que encontrem você. Use a VISÃO NOTURNA (botão ou tecla N) e siga a luz das lanternas.',
+    goal: 'all', hint: 'Siga a luz das lanternas. Na mira, aperte VISÃO (ou N).',
+    actors: [
+      { kind: 'merc', a: 'acampamento', path: [[-25, 20], [25, 20], [25, -10], [-25, -10]], speed: 1.1, wait: 3, torch: true },
+      { kind: 'merc', a: 'acampamento', path: [[30, 30], [50, 0], [35, -25]], speed: 1.0, wait: 4, torch: true },
+      { kind: 'merc', a: 'acampamento', path: [[-30, -15], [-45, 15], [-20, 30]], speed: 1.0, wait: 3, torch: true },
+      { kind: 'merc', a: 'acampamento', path: [[-5, 6]], pose: 'idle' },
+      { kind: 'merc', a: 'acampamento', path: [[7, 4]], pose: 'idle' },
+    ],
+  },
 ];
 
 const KEY = 'atirador_elite_v1';

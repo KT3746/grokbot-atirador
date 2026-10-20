@@ -44,9 +44,21 @@ function mats() {
   };
   return MATS;
 }
-export function resetActorMaterials() { if (MATS) Object.values(MATS).forEach(m => m.dispose()); MATS = null; BLOB = null; GLINT = null; }
+export function resetActorMaterials() { if (MATS) Object.values(MATS).forEach(m => m.dispose()); MATS = null; BLOB = null; GLINT = null; TORCH = null; }
 const HIT = new THREE.MeshBasicMaterial({ visible: false });
-let BLOB = null, GLINT = null;
+let BLOB = null, GLINT = null, TORCH = null;
+// lanterna: cone de luz aditivo + mancha no chao (aparece na mira e na visao noturna)
+function torchMats() {
+  if (TORCH) return TORCH;
+  const c = document.createElement('canvas'); c.width = 4; c.height = 64; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 64);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.7, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = g; x.fillRect(0, 0, 4, 64);
+  const cone = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), color: 0xfff0c8, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const c2 = document.createElement('canvas'); c2.width = c2.height = 64; const y = c2.getContext('2d'); const r = y.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.5, 'rgba(255,255,255,0.4)'); r.addColorStop(1, 'rgba(255,255,255,0)'); y.fillStyle = r; y.fillRect(0, 0, 64, 64);
+  const pool = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c2), color: 0xffe8b8, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -3 });
+  const lens = new THREE.MeshBasicMaterial({ color: 0xffffff }); lens.color.setScalar(4);
+  TORCH = { cone, pool, lens, coneG: (() => { const g = new THREE.ConeGeometry(2.0, 13, 18, 1, true); g.translate(0, -6.5, 0); g.rotateX(-Math.PI / 2); return g; })(), poolG: (() => { const g = new THREE.PlaneGeometry(1, 1); g.rotateX(-Math.PI / 2); return g; })() };
+  return TORCH;
+}
 function blobMat() {
   if (BLOB) return BLOB;
   const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(0,0,0,0.75)'); g.addColorStop(0.6, 'rgba(0,0,0,0.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
@@ -113,7 +125,7 @@ const GRIP_R = [0, -0.1, 0.1], GRIP_L = [0, -0.02, 0.17];
 
 export class Actor {
   constructor(def, world, r) {
-    this.def = def; this.kind = def.kind; this.name = def.name || null; this.world = world;
+    this.r0 = Math.random() * 6; this.def = def; this.kind = def.kind; this.name = def.name || null; this.world = world;
     this.hitboxes = []; this.alive = true; this.hp = 100;
     this.state = def.pose === 'kneel' ? 'kneel' : (def.pose === 'idle' || def.path.length === 1) ? 'idle' : 'patrol';
     this.r = r; this.t = r() * 10; this.phase = r() * 6; this.wpi = 0; this.waitT = 0; this.alertT = 0; this.speedNow = 0; this.deadT = 0; this.escaped = false;
@@ -227,7 +239,15 @@ export class Actor {
   }
   setRide(v, off) { this.ride = v; this.rideOff = new THREE.Vector3(off ? off[0] : 0, 0, off ? off[1] : 0); this.followRide(); this.state = 'idle'; }
   followRide() { const v = this.ride; V2.copy(v.bedLocal).add(this.rideOff).applyMatrix4(v.root.matrixWorld); this.root.position.copy(V2); this.fixedY = V2.y; }
-  attach(scene) { scene.add(this.root); scene.add(this.blob); if (this.glint) scene.add(this.glint); }
+  attach(scene) { scene.add(this.root); scene.add(this.blob); if (this.glint) scene.add(this.glint); if (this.def.torch) this.makeTorch(scene); }
+  makeTorch(scene) {
+    const T = torchMats(); const g = new THREE.Group(); g.position.set(-0.16, 0.3, 0.17); this.torso.add(g);
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), T.lens); lens.rotation.x = Math.PI / 2; g.add(lens);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.16, 8), new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.5 })); body.rotation.x = Math.PI / 2; body.position.z = -0.09; g.add(body);
+    const cone = new THREE.Mesh(T.coneG, T.cone); cone.rotation.x = 0.2; cone.renderOrder = 2; g.add(cone);
+    const pool = new THREE.Mesh(T.poolG, T.pool); pool.scale.set(4.5, 1, 6); scene.add(pool);
+    this.torch = { g, cone, pool, lens, wp: new THREE.Vector3(), fw: new THREE.Vector3() };
+  }
   get pos() { return this.root.position; }
   headWorld(v) { return this.head.getWorldPosition(v).add(V1.set(0, 0.1, 0)); }
   alert(src) {
@@ -294,6 +314,9 @@ export class Actor {
   }
   syncExtras(playerPos) {
     const p = this.root.position; this.blob.position.set(p.x, this.groundY(p.x, p.z) + this.blobY, p.z);
+    if (this.torch) { const T = this.torch; const on = this.alive; T.cone.visible = on; T.pool.visible = on; T.lens.visible = on;
+      if (on) { T.g.getWorldPosition(T.wp); T.fw.set(0, 0, 1).applyQuaternion(this.root.quaternion); T.fw.y = 0; T.fw.normalize(); const sw = Math.sin(performance.now() * 0.0007 + this.r0) * 0.25; T.g.rotation.y = sw;
+        const ang = Math.atan2(T.fw.x, T.fw.z) + sw; const px = T.wp.x + Math.sin(ang) * 7, pz = T.wp.z + Math.cos(ang) * 7; T.pool.position.set(px, this.groundY(px, pz) + 0.06, pz); T.pool.rotation.y = ang; } }
     if (this.glint) {
       let show = false;
       if (this.alive) { let d = this.toPlayer - (this.heading + this.head.rotation.y); while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; const f = Math.cos(d); show = f > 0.8 && Math.sin(this.t * 2.3 + this.phase) > 0.2; if (show) { this.headWorld(this.glint.position); this.glint.position.y -= 0.02; const dist = this.glint.position.distanceTo(playerPos); this.glint.scale.setScalar(dist * 0.007 * (0.6 + 0.4 * (f - 0.8) * 5) * (0.8 + 0.2 * Math.sin(this.t * 17))); } }
