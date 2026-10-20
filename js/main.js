@@ -4,13 +4,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { Game } from './game.js?v=1.1.0';
-import { UI } from './ui.js?v=1.1.0';
-import { Input } from './input.js?v=1.1.0';
-import { sfx } from './audio.js?v=1.1.0';
-import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.1.0';
-import { setAniso } from './textures.js?v=1.1.0';
-import { LIFE } from './life.js?v=1.1.0';
+import { Game } from './game.js?v=1.2.0';
+import { UI } from './ui.js?v=1.2.0';
+import { Input } from './input.js?v=1.2.0';
+import { sfx } from './audio.js?v=1.2.0';
+import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.2.0';
+import { setAniso } from './textures.js?v=1.2.0';
+import { LIFE } from './life.js?v=1.2.0';
 
 const $ = (id) => document.getElementById(id);
 const showErr = (m) => { const e = $('err'); e.textContent = 'Erro: ' + m; e.classList.remove('hidden'); };
@@ -66,7 +66,7 @@ const FinalShader = {
       vec3 dirt = texture2D(tDirt, vUv * vec2(uAspect, 1.0) * 0.6).rgb;
       float sd = length((vUv - uSun) * vec2(uAspect, 1.0)); float sunAmt = uSunVis * (1.0 - smoothstep(0.0, 0.6, sd));
       float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
-      c += dirt * (sunAmt * 0.22 + max(lum - 1.6, 0.0) * 0.1) * uDirt * vec3(1.0, 0.92, 0.8);
+      c += dirt * (sunAmt * 0.1 + max(lum - 1.8, 0.0) * 0.06) * uDirt * vec3(1.0, 0.92, 0.8);
       c = acesTM(c); c = toSRGB(c);
       // correcao de cor do mapa
       c = c * uGain + uLift * (1.0 - c); c = (c - 0.5) * uCon + 0.5; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, uSat);
@@ -78,7 +78,7 @@ const FinalShader = {
 const composer = new EffectComposer(renderer);
 const game = new Game(renderer, null, store);
 const renderPass = new RenderPass(new THREE.Scene(), game.camera); composer.addPass(renderPass);
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.32, 0.5, 0.88); composer.addPass(bloom);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.26, 0.45, 0.93); composer.addPass(bloom);
 const scopePass = new ShaderPass(FinalShader); composer.addPass(scopePass);
 const _sv = new THREE.Vector3(), _fw = new THREE.Vector3();
 
@@ -100,7 +100,7 @@ const app = {
   resume(fromTut) { if (game.mode !== 'paused') return; ui.hideScreens(); game.mode = 'play'; ui.showHud(true); ui.scope(game.scoped); if (input.desktop) input.requestLock(); this.lockHint(); },
   restart() { ui.hideScreens(); $('result').classList.add('hidden'); this.startMission(missionIdx); },
   next() { if (missionIdx < MISSIONS.length - 1) this.startMission(missionIdx + 1); },
-  quit(screen = 'title') { input.releaseLock(); ui.showHud(false); ui.hideBanner(); ui.killcam(false); game.mode = 'menu'; game.scoped = false; game.timeScale = 1; game.killcam = null; ui.clearMarkers(); ui.show(screen); },
+  quit(screen = 'title') { game.binoc = false; ui.binoc(false); input.releaseLock(); ui.showHud(false); ui.hideBanner(); ui.killcam(false); game.mode = 'menu'; game.scoped = false; game.timeScale = 1; game.killcam = null; ui.clearMarkers(); ui.show(screen); },
   applySettings() { sfx.setVolume(store.save.settings.vol); applyQuality(); ui.renderSettings(); },
   lockHint() { $('lockhint').classList.toggle('hidden', !(input.desktop && game.mode === 'play' && !input.locked)); },
 };
@@ -125,7 +125,7 @@ function applyQuality() {
   const pr = (q === 'alta' ? Math.min(dpr, 2) : q === 'media' ? Math.min(dpr, 1.5) : 1) * (q === 'baixa' ? prScale : 1);
   renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
   bloom.enabled = q !== 'baixa'; game.applyQuality(q); LIFE.pr = pr; LIFE.height = innerHeight;
-  scopePass.uniforms.uGrain.value = q === 'alta' ? 0.035 : 0.025; scopePass.uniforms.uDirt.value = q === 'alta' ? 1 : 0.6;
+  scopePass.uniforms.uGrain.value = q === 'alta' ? 0.035 : 0.025; scopePass.uniforms.uDirt.value = q === 'alta' ? 1 : 0.4;
   $('fps').classList.toggle('hidden', !store.save.settings.fps);
 }
 function resize() {
@@ -159,7 +159,7 @@ function frame(now) {
   else {
     const sd = Math.min(innerHeight * 0.94, innerWidth * 0.62);
     scopePass.uniforms.uK.value = game.mode === 'killcam' ? 0 : game.scopeK; scopePass.uniforms.uR.value = sd / 2 / innerHeight; scopePass.uniforms.uAspect.value = innerWidth / innerHeight;
-    bloom.strength = game.mode === 'killcam' ? 0.5 : 0.32;
+    bloom.strength = game.mode === 'killcam' ? 0.42 : 0.26;
     const U = scopePass.uniforms; const m = game.mission; const gr = GRADES[m && m.sky.night ? 'noite' : (m ? m.map : 'cidade')] || GRADES.cidade;
     U.uLift.value.fromArray(gr.lift); U.uGain.value.fromArray(gr.gain); U.uSat.value = gr.sat; U.uCon.value = gr.con; U.uExposure.value = renderer.toneMappingExposure; U.uTime.value = (now % 10000) / 1000;
     if (game.envInfo) { _sv.copy(game.envInfo.sunDir).multiplyScalar(1000).add(game.camera.position).project(game.camera); game.camera.getWorldDirection(_fw); const facing = _fw.dot(game.envInfo.sunDir);

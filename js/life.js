@@ -1,7 +1,7 @@
 // Vida no cenario: nuvens, passaros, colunas de fumaca, grama e sombra de contato barata
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { rng, fbm, clamp } from './util.js?v=1.1.0';
+import { rng, fbm, clamp } from './util.js?v=1.2.0';
 
 export const LIFE = { pr: 1, height: 800 };
 const QN = { baixa: 0, media: 1, alta: 2 };
@@ -69,14 +69,19 @@ export function makeBirds(scene, center, count, opts = {}) {
   const r = rng(opts.seed || 5);
   const B = []; for (let i = 0; i < count; i++) B.push({ rad: (opts.radius || 60) * (0.5 + r()), ph: r() * 6.28, h: (opts.h || 40) + r() * 20, sp: (0.12 + r() * 0.1) * (r() < 0.5 ? -1 : 1), flap: 5 + r() * 4, fp: r() * 6.28, ox: (r() - 0.5) * 40, oz: (r() - 0.5) * 40 });
   const M = new THREE.Matrix4(), P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), E = new THREE.Euler();
+  let panic = 0, pv = 0; const out = B.map(() => new THREE.Vector3());
   return {
     obj: im,
+    // tiro: os passaros se espalham e depois voltam a circular
+    scatter(from) { if (panic > 0.5) return; pv = 1; B.forEach((b, i) => { const a = r() * 6.28; out[i].set(Math.cos(a), 0.6 + r() * 0.8, Math.sin(a)).multiplyScalar(40 + r() * 50); }); },
     update(dt, t) {
+      if (pv > 0) { panic = Math.min(1, panic + dt * 1.6); if (panic >= 1) pv = 0; } else panic = Math.max(0, panic - dt * 0.08);
+      const pe = panic * panic * (3 - 2 * panic);
       for (let i = 0; i < count; i++) {
         const b = B[i]; const a = b.ph + t * b.sp;
-        P.set(center.x + b.ox + Math.cos(a) * b.rad, center.y + b.h + Math.sin(t * 0.3 + b.ph) * 3, center.z + b.oz + Math.sin(a) * b.rad);
+        P.set(center.x + b.ox + Math.cos(a) * b.rad, center.y + b.h + Math.sin(t * 0.3 + b.ph) * 3, center.z + b.oz + Math.sin(a) * b.rad).addScaledVector(out[i], pe);
         const head = -a + (b.sp > 0 ? 0 : Math.PI); E.set(0, head, (b.sp > 0 ? -1 : 1) * 0.25); Q.setFromEuler(E);
-        const fl = Math.sin(t * b.flap + b.fp); const glide = Math.sin(t * 0.5 + b.ph) > 0.3 ? 0.15 : 1;
+        const fl = Math.sin(t * b.flap * (1 + pe * 1.5) + b.fp); const glide = pe > 0.05 ? 1 : Math.sin(t * 0.5 + b.ph) > 0.3 ? 0.15 : 1;
         S.set(1, 1 + fl * 6 * glide, 1); M.compose(P, Q, S); im.setMatrixAt(i, M);
       }
       im.instanceMatrix.needsUpdate = true;
@@ -94,7 +99,7 @@ function makeSmokeTex() {
   smokeTex = new THREE.CanvasTexture(c); return smokeTex;
 }
 export function makeSmoke(scene, sources, q) {
-  const per = q === 'baixa' ? 22 : 40; const n = sources.length * per;
+  const per = q === 'baixa' ? 18 : q === 'media' ? 26 : 40; const n = sources.length * per;
   const base = new Float32Array(n * 3), seed = new Float32Array(n * 4);
   sources.forEach((s, j) => { for (let i = 0; i < per; i++) { const k = j * per + i; base[k * 3] = s.x; base[k * 3 + 1] = s.y; base[k * 3 + 2] = s.z; seed[k * 4] = i / per; seed[k * 4 + 1] = Math.random(); seed[k * 4 + 2] = s.scale || 1; seed[k * 4 + 3] = s.dark ? 1 : 0; } });
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(base, 3)); g.setAttribute('seed', new THREE.BufferAttribute(seed, 4));
@@ -174,7 +179,7 @@ export function makeGrass(scene, groundAt, area, opts = {}) {
   return {
     obj: im,
     update(dt, t) { uT.value = t; },
-    setQuality(q) { im.visible = q !== 'baixa'; im.count = q === 'alta' ? im.userData.full : Math.floor(im.userData.full * 0.4); },
+    setQuality(q) { im.visible = q !== 'baixa'; im.count = q === 'alta' ? im.userData.full : Math.floor(im.userData.full * 0.25); },
   };
 }
 
@@ -192,4 +197,40 @@ export function makeBaseAO(scene, boxes, y = 0.22, width = 3.2) {
   const mat = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: t, transparent: true, opacity: 0.42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const m = new THREE.Mesh(mergeGeometries(parts), mat); m.renderOrder = 1; scene.add(m);
   return { obj: m, update() { }, setQuality(q) { m.visible = q !== 'baixa'; } };
+}
+
+// ---------- transito de civis na cidade (InstancedMesh, so cenario) ----------
+function carGeometry() {
+  const parts = []; const col = (g, c) => { const cc = new THREE.Color(c); const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = cc.r; a[i * 3 + 1] = cc.g; a[i * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); parts.push(g.index ? g.toNonIndexed() : g); };
+  let g = new THREE.BoxGeometry(1.85, 0.62, 4.3); g.translate(0, 0.62, 0); col(g, 0xffffff);
+  g = new THREE.BoxGeometry(1.62, 0.55, 2.2); g.translate(0, 1.2, -0.25); col(g, 0xffffff);
+  g = new THREE.BoxGeometry(1.66, 0.42, 2.0); g.translate(0, 1.2, -0.25); col(g, 0x1a2430);
+  g = new THREE.BoxGeometry(1.5, 0.16, 0.05); g.translate(0, 0.7, 2.16); col(g, 0xfff4d0);
+  g = new THREE.BoxGeometry(1.5, 0.14, 0.05); g.translate(0, 0.72, -2.16); col(g, 0xc01810);
+  for (const [x, z] of [[0.86, 1.35], [-0.86, 1.35], [0.86, -1.35], [-0.86, -1.35]]) { g = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 10); g.rotateZ(Math.PI / 2); g.translate(x, 0.34, z); col(g, 0x0e0e0e); }
+  return mergeGeometries(parts);
+}
+export function makeTraffic(scene, q, lanes) {
+  const per = q === 'baixa' ? 2 : q === 'media' ? 3 : 4; const r = rng(23);
+  const cars = [];
+  lanes.forEach((L, li) => { const len = L.b - L.a; for (let k = 0; k < per; k++) cars.push({ L, s: (k + r() * 0.5) / per * len, v: L.v * (0.9 + r() * 0.2) }); });
+  const mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45, clearcoat: 0.8, clearcoatRoughness: 0.15 });
+  const im = new THREE.InstancedMesh(carGeometry(), mat, cars.length); im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const pal = [0x8a1c1c, 0x1c3a6a, 0xdedede, 0x2a2a2a, 0x7a7a7a, 0x2a5a3a, 0xc8a040, 0xb0b8c0, 0x5a2a5a]; const C = new THREE.Color();
+  cars.forEach((c, i) => im.setColorAt(i, C.set(pal[Math.floor(r() * pal.length)])));
+  scene.add(im);
+  const M = new THREE.Matrix4(), P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3(1, 1, 1), Y = new THREE.Vector3(0, 1, 0);
+  return {
+    obj: im,
+    update(dt) {
+      cars.forEach((c, i) => {
+        const L = c.L, len = L.b - L.a; c.s = (c.s + c.v * dt) % len; const u = L.a + c.s;
+        if (L.axis === 'z') P.set(L.c, 0.04, L.dir > 0 ? L.b - c.s : u); else P.set(L.dir > 0 ? u : L.b - c.s, 0.12, L.c);
+        const yaw = L.axis === 'z' ? (L.dir > 0 ? Math.PI : 0) : (L.dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+        Q.setFromAxisAngle(Y, yaw); M.compose(P, Q, S); im.setMatrixAt(i, M);
+      });
+      im.instanceMatrix.needsUpdate = true;
+    },
+    setQuality() { },
+  };
 }

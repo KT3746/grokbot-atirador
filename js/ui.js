@@ -1,8 +1,8 @@
 // Interface: telas, HUD, marcadores, resultados
 import * as THREE from 'three';
-import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.1.0';
-import { sfx } from './audio.js?v=1.1.0';
-import { fmtTime, fmtMoney, clamp } from './util.js?v=1.1.0';
+import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.2.0';
+import { sfx } from './audio.js?v=1.2.0';
+import { fmtTime, fmtMoney, clamp } from './util.js?v=1.2.0';
 
 const $ = (id) => document.getElementById(id);
 const ART = {
@@ -127,6 +127,7 @@ export class UI {
       'Toque em <b>ZOOM</b> para abrir a luneta. Toque de novo para aumentar o zoom.',
       'Segure <b>PRENDER RESPIRAÇÃO</b> para a mira parar de balançar.',
       'Toque em <b>ATIRAR</b>. A bala demora um pouco e cai com a distância.',
+      'Toque em <b>BINÓCULO</b> e deixe o centro sobre um inimigo: ele fica <b>marcado</b> com um quadro vermelho.',
       'Olhe o <b>vento</b> no alto da tela: ele empurra a bala para o lado.',
       'Mire na cabeça para ganhar mais dinheiro. Nunca acerte reféns ou civis (marcados em azul).',
     ] : [
@@ -134,6 +135,7 @@ export class UI {
       '<b>Botão direito</b>: abre a luneta. <b>Rodinha</b>: muda o zoom.',
       '<b>Shift</b> (segure): prende a respiração e a mira para de balançar.',
       '<b>Botão esquerdo</b>: atira. <b>R</b>: recarrega. <b>Esc</b>: pausa.',
+      '<b>B</b>: binóculo. Deixe o centro sobre um inimigo para <b>marcar</b> ele com um quadro vermelho.',
       'Olhe o <b>vento</b> no alto da tela: ele empurra a bala para o lado.',
       'Mire na cabeça para ganhar mais dinheiro. Nunca acerte reféns ou civis (marcados em azul).',
     ];
@@ -143,14 +145,16 @@ export class UI {
   // ---------- HUD ----------
   showHud(v) { $('hud').classList.toggle('hidden', !v); if (!v) { $('scope').classList.add('hidden'); } }
   scope(v) { $('scope').classList.toggle('hidden', !v); $('b-zoom').classList.toggle('on', v); }
+  scopeLift(v) { if (this._lift !== v) { this._lift = v; $('scope').classList.toggle('lift', v); } }
+  binoc(v) { $('binoc').classList.toggle('hidden', !v); $('b-spot').classList.toggle('on', v); }
   clearMarkers() { $('markers').innerHTML = ''; this.markers = []; }
   buildMarkers(actors) {
     this.clearMarkers();
     actors.forEach(a => {
       const el = document.createElement('div'); el.className = 'mk ' + a.kind;
       const label = a.kind === 'hvt' ? (a.name || 'ALVO') : a.kind === 'hostage' ? 'REFÉM: NÃO ATIRE' : a.kind === 'civil' ? 'CIVIL' : '!';
-      el.innerHTML = `<div class="tx">${label}</div><div class="ic"></div>`;
-      $('markers').appendChild(el); this.markers.push({ a, el, tx: el.querySelector('.tx'), vis: true, cls: '' });
+      el.innerHTML = `<div class="tx">${label}</div><div class="ic"></div><div class="br"></div>`;
+      $('markers').appendChild(el); this.markers.push({ a, el, tx: el.querySelector('.tx'), br: el.querySelector('.br'), vis: true, cls: '' });
     });
   }
   toast(t) { const e = $('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(this._tt); this._tt = setTimeout(() => e.classList.remove('on'), 1800); }
@@ -193,7 +197,7 @@ export class UI {
       else pd.classList.add('hidden');
     }
     // marcadores
-    const v = new THREE.Vector3(), W = innerWidth, H = innerHeight, R2 = (sd / 2) * (sd / 2);
+    const v = new THREE.Vector3(), v2 = new THREE.Vector3(), W = innerWidth, H = innerHeight, R2 = (sd / 2) * (sd / 2);
     for (const mk of this.markers) {
       const a = mk.a; let show = a.alive && g.mode !== 'killcam';
       if (show) { a.headWorld(v); v.y += 0.12; v.project(cam); show = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05; }
@@ -203,6 +207,13 @@ export class UI {
       if (show !== mk.vis) { mk.el.style.display = show ? '' : 'none'; mk.vis = show; }
       if (!show) continue;
       mk.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+      // quadro em volta do corpo para inimigos marcados
+      if (a.tagged) {
+        if (!mk.tg) { mk.tg = true; mk.el.classList.add('tag'); }
+        const fv = v2.copy(a.pos).project(cam); const hpx = Math.max(10, ((-fv.y * 0.5 + 0.5) * H) - y); const wpx = Math.max(8, hpx * 0.5);
+        const key = (hpx | 0) + ':' + (wpx | 0); if (mk.bk !== key) { mk.bk = key; mk.br.style.height = (hpx + 6).toFixed(0) + 'px'; mk.br.style.width = (wpx + 6).toFixed(0) + 'px'; }
+        if (a.kind === 'merc') { const t = Math.round(a.pos.distanceTo(cam.position)) + ' m'; if (mk.lt !== t) { mk.tx.textContent = t; mk.lt = t; } }
+      }
       const alert = a.state === 'alert' || a.state === 'flee';
       const cls = alert ? 'alert' : ''; if (cls !== mk.cls) { mk.el.classList.toggle('alert', alert); mk.cls = cls; }
       if (a.kind === 'hvt') { const d = Math.round(a.pos.distanceTo(cam.position)); const t = (a.name || 'ALVO') + ' ' + d + ' m' + (a.state === 'flee' ? ' FUGINDO!' : ''); if (mk.lt !== t) { mk.tx.textContent = t; mk.lt = t; } }
@@ -218,6 +229,7 @@ export class UI {
     for (let i = 0; i < r.stars; i++) setTimeout(() => { stars[i].classList.add('on'); sfx.star(i); }, 450 + i * 420);
     $('r-grid').innerHTML = `<div>Precisão<b>${Math.round(r.acc * 100)}%</b></div><div>Na cabeça<b>${r.heads}</b></div><div>Abatidos<b>${r.kills}</b></div><div>Tempo<b>${fmtTime(r.time)}</b></div>`;
     $('r-money').textContent = r.win ? '+ ' + fmtMoney(r.money) : '';
+    const rk = $('r-rank'); if (r.win && r.rank) { rk.classList.remove('hidden'); rk.className = 'r-rank lv' + r.rank.i; rk.innerHTML = `<span>PATENTE</span><b>${r.rank.name.toUpperCase()}</b>${r.newRank ? '<em>NOVA!</em>' : ''}<div class="rk-bar">${Array.from({ length: 8 }, (_, i) => `<i class="${i <= r.rank.i ? 'on' : ''}"></i>`).join('')}</div>`; } else rk.className = 'r-rank hidden';
     const idx = MISSIONS.indexOf(this.app.currentMission());
     $('r-next').disabled = !(r.win && idx < MISSIONS.length - 1); $('r-next').textContent = idx < MISSIONS.length - 1 ? 'PRÓXIMA' : 'FIM';
     if (!r.win) sfx.fail();

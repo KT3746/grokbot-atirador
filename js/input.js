@@ -1,5 +1,5 @@
 // Controles: toque (celular) e mouse/teclado (PC)
-import { sfx } from './audio.js?v=1.1.0';
+import { sfx } from './audio.js?v=1.2.0';
 
 export class Input {
   constructor(game, app, canvas) {
@@ -11,6 +11,7 @@ export class Input {
     btn('b-fire', () => this.g.fire());
     btn('b-zoom', () => this.g.toggleScope());
     btn('b-reload', () => this.g.reload());
+    btn('b-spot', () => this.g.toggleBinoc());
     btn('b-breath', () => this.g.setHold(true), () => this.g.setHold(false));
     btn('b-pause', () => this.app.pause());
     // mirar arrastando o dedo
@@ -49,6 +50,7 @@ export class Input {
       if (this.g.mode !== 'play') { if ((e.key === 'Escape' || e.key === 'p') && this.g.mode === 'paused') this.app.resume(); return; }
       if (e.key === 'Shift' || e.code === 'Space') { this.g.setHold(true); e.preventDefault(); }
       else if (e.key === 'r' || e.key === 'R') this.g.reload();
+      else if (e.key === 'b' || e.key === 'B') this.g.toggleBinoc();
       else if (e.key === 'e' || e.key === 'E' || e.key === 'z' || e.key === 'Z') this.g.toggleScope();
       else if (e.key === 'q' || e.key === 'Q') this.g.toggleScope(false);
       else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') this.app.pause();

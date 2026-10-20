@@ -1,5 +1,5 @@
 // Dados do jogo: armas, melhorias, mapas, missoes e progresso salvo
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 
 export const WEAPONS = [
   { id: 'falcao', name: 'Falcão R7', desc: 'Rifle de ferrolho leve. Bom para começar.', price: 0, zooms: [8, 14], damage: 90, stability: 0.55, mag: 5, velocity: 820, bolt: 1.0, reload: 2.4, recoil: 0.035, color: 0x3b3f33 },
@@ -83,10 +83,13 @@ export const MISSIONS = [
     id: 'm2', map: 'montanha', name: 'Comboio do Vale', time: 220, par: 100, reward: 2200,
     sky: { elev: 30, azim: 40, turb: 5, ray: 1.5, fog: 0.00072, exposure: 0.5 },
     wind: { speed: 3.5, dir: 250 },
-    brief: 'O Contador dos Corvos Negros vai da cabana até o caminhão na estrada. Se ele perceber você, foge pela estrada. Um lenhador trabalha por perto: não acerte ele.',
+    brief: 'O Contador dos Corvos Negros viaja na carroceria de um caminhão que vai e volta pela estrada do vale. Mire um pouco à frente do caminhão. Se ele perceber você, o caminhão foge. Um lenhador trabalha por perto: não acerte ele.',
+    hint: 'O caminhão anda: mire um pouco à frente dele.',
     goal: 'hvt',
+    vehicles: [{ a: 'acampamento', route: [[-20, -75], [-130, -75], [-250, -75]], exit: [-430, -75], speed: 4.2, wait: 4 }],
     actors: [
-      { kind: 'hvt', name: 'O Contador', a: 'acampamento', path: [[-14, -6], [0, -30], [20, -62]], speed: 0.9, wait: 5, escape: [200, -75] },
+      { kind: 'hvt', name: 'O Contador', a: 'acampamento', path: [[0, 0]], ride: 0, rideOff: [0.35, -0.4] },
+      { kind: 'merc', a: 'acampamento', path: [[0, 0]], ride: 0, rideOff: [-0.4, -1.4] },
       { kind: 'merc', a: 'acampamento', path: [[-10, -10], [4, -34], [24, -60]], speed: 0.9, wait: 5 },
       { kind: 'merc', a: 'acampamento', path: [[30, -66]], pose: 'idle' },
       { kind: 'merc', a: 'acampamento', path: [[-30, 10], [10, 10]], speed: 1.2, wait: 3 },

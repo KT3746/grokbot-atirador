@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { clamp, damp, lerp } from './util.js?v=1.1.0';
+import { clamp, damp, lerp } from './util.js?v=1.2.0';
 
 // ---------- materiais compartilhados ----------
 export const RIM = { uRim: { value: 0.32 }, uRimColor: { value: new THREE.Color(0xfff1d8) }, uFogK: { value: 0.45 } };
@@ -102,6 +102,7 @@ function lookFor(kind, r, env) {
 
 const POSE0 = { by: 0.95, tx: 0.03, ty: 0, hx: 0, thL: 0, thR: 0, knL: 0.05, knR: 0.05, shL: 0, shR: 0, szL: 0.08, szR: 0.08, elL: -0.15, elR: -0.15, gx: 0.5, gy: 0.2, gz: 0.26 };
 const KEYS = Object.keys(POSE0);
+const GRIP_R = [0, -0.1, 0.1], GRIP_L = [0, -0.02, 0.17];
 
 export class Actor {
   constructor(def, world, r) {
@@ -121,7 +122,7 @@ export class Actor {
     this.root.position.copy(this.path[0]);
     this.heading = this.path.length > 1 ? Math.atan2(this.path[1].x - this.path[0].x, this.path[1].z - this.path[0].z) : Math.atan2(-this.path[0].x, -this.path[0].z) + (r() - 0.5) * 2;
     this.root.rotation.y = this.heading; this.lookYaw = 0;
-    this.scale = 0.94 + r() * 0.12; this.root.scale.setScalar(this.scale);
+    this.scale = 1.02 + r() * 0.1; this.root.scale.setScalar(this.scale);
   }
   groundY(x, z) { return this.fixedY != null ? this.fixedY : this.world.groundAt(x, z); }
   build(L) {
@@ -154,8 +155,18 @@ export class Actor {
     H.add(sphere(0.04, 8, 6), bal ? 0x1b1b1d : skin, 'hard', 0, 0.035, 0.035, 0, 0, 0, 1.4, 0.9, 1.1); // queixo
     H.add(box(0.026, 0.045, 0.04), bal ? 0x1b1b1d : skin, 'hard', 0, 0.1, 0.1, -0.2);
     H.add(sphere(0.022, 6, 5), skin, 'hard', 0.1, 0.1, -0.005, 0, 0, 0, 0.5, 1, 0.8).add(sphere(0.022, 6, 5), skin, 'hard', -0.1, 0.1, -0.005, 0, 0, 0, 0.5, 1, 0.8);
-    if (bal) H.add(box(0.13, 0.03, 0.02), skin, 'hard', 0, 0.125, 0.1);
-    else H.add(box(0.026, 0.012, 0.01), 0x1a1410, 'hard', 0.038, 0.135, 0.098).add(box(0.026, 0.012, 0.01), 0x1a1410, 'hard', -0.038, 0.135, 0.098);
+    // rosto: olhos com pupila, sobrancelhas, boca, faces e barba em alguns
+    const eyeY = 0.128, brow = r() < 0.5 ? 0x2a1c12 : 0x15110e;
+    if (bal) H.add(box(0.13, 0.034, 0.02), skin, 'hard', 0, eyeY, 0.098);
+    for (const sx of [1, -1]) {
+      H.add(sphere(0.0135, 8, 6), 0xf2efe8, 'hard', 0.036 * sx, eyeY, 0.093, 0, 0, 0, 1.25, 0.8, 0.6).add(sphere(0.0075, 6, 5), 0x1d140e, 'hard', 0.036 * sx, eyeY, 0.1, 0, 0, 0, 1, 1, 0.5);
+      if (!bal) H.add(rbox(0.034, 0.009, 0.012, 0.004), brow, 'hard', 0.037 * sx, eyeY + 0.024, 0.098, 0, 0, -0.12 * sx);
+    }
+    if (!bal) {
+      H.add(rbox(0.04, 0.008, 0.01, 0.003), 0x6a3a30, 'hard', 0, 0.062, 0.096);
+      H.add(sphere(0.03, 8, 6), skin, 'hard', 0.05, 0.085, 0.07, 0, 0, 0, 1, 0.8, 0.6).add(sphere(0.03, 8, 6), skin, 'hard', -0.05, 0.085, 0.07, 0, 0, 0, 1, 0.8, 0.6);
+      if (this.kind !== 'hostage' && r() < 0.35) H.add(sphere(0.07, 12, 8), r() < 0.5 ? 0x2a1c12 : 0x4a3426, 'cloth', 0, 0.045, 0.04, 0, 0, 0, 1.25, 0.75, 1.0).add(rbox(0.05, 0.012, 0.014, 0.004), 0x2a1c12, 'cloth', 0, 0.077, 0.098);
+    }
     if (L.head === 'helmet') { H.add(helmetGeo, 0x3a3d36, 'hard', 0, 0.12, -0.005, 0, 0, 0, 1, 0.95, 1.1).add(cyl(0.145, 0.15, 0.02, 18), 0x33362f, 'hard', 0, 0.13, -0.005, 0, 0, 0, 1, 1, 1.08); if (L.goggles) H.add(rbox(0.19, 0.045, 0.04, 0.015), 0x111111, 'hard', 0, 0.21, 0.1); }
     else if (L.head === 'cap') H.add(cyl(0.115, 0.117, 0.075, 16), 0x26282a, 'cloth', 0, 0.185, 0).add(box(0.15, 0.012, 0.1), 0x26282a, 'cloth', 0, 0.155, 0.11, 0.12);
     else if (L.head === 'beret' || L.head === 'redberet') H.add(cyl(0.125, 0.118, 0.05, 16), L.head === 'redberet' ? 0x8c1c1c : 0x161616, 'cloth', 0.02, 0.205, 0, 0, 0, 0.25);
@@ -172,7 +183,12 @@ export class Actor {
       if (L.band) A.add(cyl(0.058, 0.058, 0.045, 10), 0x9e1d1a, 'cloth', 0, -0.09, 0);
       A.build(sh);
       const el = new THREE.Group(); el.position.y = -0.28; sh.add(el);
-      new Seg().add(limbGeo(0.056, 0.042, 0.25), L.coat || L.mat === 'camo' ? L.uni : skin, L.coat || L.mat === 'camo' ? mUni : 'hard', 0, 0, 0).add(rbox(0.07, 0.09, 0.04, 0.015), L.gloves ? 0x1c1c1c : skin, 'hard', 0, -0.29, 0.005).build(el);
+      const hc = L.gloves ? 0x1f201d : skin;
+      new Seg().add(limbGeo(0.056, 0.042, 0.25), L.coat || L.mat === 'camo' ? L.uni : skin, L.coat || L.mat === 'camo' ? mUni : 'hard', 0, 0, 0)
+        .add(rbox(0.05, 0.07, 0.03, 0.012), hc, 'hard', 0, -0.285, 0.004)
+        .add(rbox(0.048, 0.05, 0.026, 0.01), hc, 'hard', 0, -0.33, 0.016, 0.55)
+        .add(capsule(0.011, 0.03), hc, 'hard', -0.026 * side, -0.29, 0.024, 0.6, 0, 0.5 * side)
+        .add(cyl(0.024, 0.024, 0.02, 10), L.gloves ? 0x2c2d29 : (L.coat || L.mat === 'camo' ? L.uni : skin), 'hard', 0, -0.255, 0).build(el);
       return { sh, el };
     };
     this.armL = arm(1); this.armR = arm(-1);
@@ -202,20 +218,23 @@ export class Actor {
     // brilho de lente (binoculo ou luneta)
     if (L.optic) { this.glint = new THREE.Sprite(glintMat()); this.glint.visible = false; }
   }
+  setRide(v, off) { this.ride = v; this.rideOff = new THREE.Vector3(off ? off[0] : 0, 0, off ? off[1] : 0); this.followRide(); this.state = 'idle'; }
+  followRide() { const v = this.ride; V2.copy(v.bedLocal).add(this.rideOff).applyMatrix4(v.root.matrixWorld); this.root.position.copy(V2); this.fixedY = V2.y; }
   attach(scene) { scene.add(this.root); scene.add(this.blob); if (this.glint) scene.add(this.glint); }
   get pos() { return this.root.position; }
   headWorld(v) { return this.head.getWorldPosition(v).add(V1.set(0, 0.1, 0)); }
   alert(src) {
     if (!this.alive || this.kind === 'hostage') return false;
     const was = this.state === 'alert' || this.state === 'flee';
-    if (this.kind === 'hvt' && this.escape) this.state = 'flee';
+    if (this.kind === 'hvt' && (this.escape || this.ride)) this.state = 'flee';
+    else if (this.ride) { this.state = 'alert'; this.alertT = 12; this.ride.flee(); }
     else if (this.kind === 'civil') { this.state = 'flee'; this.civTarget = this.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 50, 0, (Math.random() - 0.5) * 50)); this.civTarget.y = this.groundY(this.civTarget.x, this.civTarget.z); }
     else { this.state = 'alert'; this.alertT = 12; this.scramble = null; this.scrambleWait = 0.6 + Math.random() * 0.8; }
     this.alertSrc = src ? src.clone() : null;
     return !was;
   }
   kill(dir, part) {
-    if (!this.alive) return; this.alive = false; this.state = 'dead'; this.deadT = 0; this.hitPart = part;
+    if (!this.alive) return; if (this.ride && this.kind === 'hvt') this.ride.stop(); this.alive = false; this.state = 'dead'; this.deadT = 0; this.hitPart = part;
     const h = new THREE.Vector3(dir.x, 0, dir.z); if (h.lengthSq() < 1e-6) h.set(0, 0, 1); h.normalize();
     // cai na direcao da bala com um pouco de giro aleatorio
     h.applyAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.8);
@@ -237,7 +256,15 @@ export class Actor {
   turnTo(a, dt, k) { let dh = a - this.heading; while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2; this.heading += dh * Math.min(1, dt * k); }
   update(dt, playerPos) {
     this.t += dt;
+    if (this.ride) this.followRide();
     if (this.state === 'dead') { this.animDead(dt); this.syncExtras(playerPos); return; }
+    if (this.ride) {
+      this.speedNow = 0; this.toPlayer = Math.atan2(playerPos.x - this.pos.x, playerPos.z - this.pos.z);
+      if (this.state === 'flee' || this.state === 'alert') this.ride.flee();
+      if (this.ride.done && this.kind === 'hvt') this.escaped = true;
+      this.heading = this.ride.heading + (this.rideOff.x >= 0 ? 0.5 : -2.6); this.lookYaw = Math.sin(this.t * 0.4 + this.phase) * 0.8;
+      this.root.rotation.y = this.heading; this.animate(dt); this.syncExtras(playerPos); return;
+    }
     this.speedNow = 0;
     const toPlayer = Math.atan2(playerPos.x - this.pos.x, playerPos.z - this.pos.z); this.toPlayer = toPlayer;
     if (this.state === 'patrol') {
@@ -291,7 +318,22 @@ export class Actor {
       for (const k in W) o[k] = lerp(o[k], W[k], w);
       if (armed && run) { o.gx = lerp(o.gx, 0.9, w); }
     }
+    if (this.gun && this.ikOn()) { this.solveArm(o, 'R', GRIP_R); this.solveArm(o, 'L', GRIP_L); }
     this.apply(o);
+  }
+  ikOn() { return this.state !== 'kneel' && this.state !== 'cower'; }
+  // IK de dois ossos: a mao vai ate o ponto de pegada da arma (no espaco do tronco)
+  solveArm(o, side, grip) {
+    const sx = side === 'L' ? 0.2 : -0.2, l1 = 0.28, l2 = 0.3;
+    const cx = Math.cos(o.gx), sn = Math.sin(o.gx);
+    const ty = o.gy + grip[1] * cx - grip[2] * sn, tz = o.gz + grip[1] * sn + grip[2] * cx, tx = -0.04 + grip[0];
+    let vx = tx - sx, vy = ty - 0.47, vz = tz; let D = Math.hypot(vx, vy, vz); const maxD = (l1 + l2) * 0.985;
+    if (D > maxD) { const k = maxD / D; vx *= k; vy *= k; vz *= k; D = maxD; }
+    const cphi = clamp((D * D - l1 * l1 - l2 * l2) / (2 * l1 * l2), -1, 1); const phi = -Math.acos(cphi);
+    const y0 = -l1 - l2 * Math.cos(phi), z0 = -l2 * Math.sin(phi);
+    const sc = clamp(vx / -y0, -0.95, 0.95); const c = -Math.asin(sc) * -1; const cc = Math.cos(c);
+    const y1 = y0 * cc, z1 = z0; const a = Math.atan2(vz, vy) - Math.atan2(z1, y1);
+    if (side === 'L') { o.shL = a; o.szL = c; o.elL = phi; } else { o.shR = a; o.szR = -c; o.elR = phi; }
   }
   apply(o) {
     this.body.position.y = o.by; this.torso.rotation.x = o.tx; this.torso.rotation.y = o.ty; this.head.rotation.x = o.hx;

@@ -1,10 +1,10 @@
 // Construcao procedural dos cenarios: cidade, montanha e deserto
 import * as THREE from 'three';
-import * as L_ from './life.js?v=1.1.0';
+import * as L_ from './life.js?v=1.2.0';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import * as T from './textures.js?v=1.1.0';
-import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.1.0';
+import * as T from './textures.js?v=1.2.0';
+import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.2.0';
 
 const std = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
 
@@ -137,7 +137,7 @@ function makeDrift(scene, count, area, center, color, size, opacity, yRange) {
 // ---------- AMBIENTE (ceu, sol, neblina, luz) ----------
 export function setupEnvironment(scene, renderer, sp, mapId) {
   const sky = new Sky(); sky.scale.setScalar(2000); sky.material.depthWrite = false; sky.material.depthTest = false; sky.renderOrder = -10; sky.frustumCulled = false;
-  const u = sky.material.uniforms; u.turbidity.value = sp.turb; u.rayleigh.value = sp.ray; u.mieCoefficient.value = 0.005; u.mieDirectionalG.value = 0.82;
+  const u = sky.material.uniforms; u.turbidity.value = sp.turb; u.rayleigh.value = sp.ray; u.mieCoefficient.value = 0.0032; u.mieDirectionalG.value = 0.8;
   const sun = new THREE.Vector3(); sun.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - sp.elev), THREE.MathUtils.degToRad(sp.azim)); u.sunPosition.value.copy(sun);
   scene.add(sky);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = sp.exposure;
@@ -403,6 +403,11 @@ function addLife(w, mapId, scene, q, sp, sunDir) {
     const src = [far[3], far[Math.floor(far.length * 0.6)]].filter(Boolean).map((t, i) => ({ x: t.x, y: t.y, z: t.z, scale: 1.2, dark: i === 0 }));
     L.push(L_.makeSmoke(scene, src, q));
     L.push(L_.makeBirds(scene, new THREE.Vector3(0, 0, -210), 14, { h: 28, radius: 45, size: 0.45, seed: 3 }));
+    // transito: ruas norte sul (x = i*70) e leste oeste (z = -j*70), longe da praca
+    const lanes = [];
+    for (const i of [-3, -2, -1, 1, 2, 3]) { lanes.push({ axis: 'z', c: i * 70 - 3.5, a: -760, b: 80, dir: 1, v: 9 + (i & 1) * 2 }); lanes.push({ axis: 'z', c: i * 70 + 3.5, a: -760, b: 80, dir: -1, v: 10 }); }
+    for (const j of [1, 5, 6]) { lanes.push({ axis: 'x', c: -j * 70 - 3.5, a: -340, b: 340, dir: 1, v: 10 }); lanes.push({ axis: 'x', c: -j * 70 + 3.5, a: -340, b: 340, dir: -1, v: 9 }); }
+    L.push(L_.makeTraffic(scene, q, lanes));
     const near = w.roofTops.filter(t => t.z > -520 && t.z < -10); const ao = L_.makeBaseAO(scene, near.map(t => ({ x: t.x, z: t.z, w: t.w, d: t.d })), 0.21, 3.5); if (ao) L.push(ao);
   } else if (mapId === 'montanha') {
     const f = w.fire ? w.fire.position : new THREE.Vector3(30, 0, -255);

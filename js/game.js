@@ -1,16 +1,40 @@
 // Nucleo do jogo: missao, mira, balistica, IA, regras, camera lenta
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildWorld, setupEnvironment } from './world.js?v=1.1.0';
-import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.1.0';
-import { FX } from './fx.js?v=1.1.0';
-import { sfx } from './audio.js?v=1.1.0';
-import { WEAPONS, MISSIONS } from './data.js?v=1.1.0';
-import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.1.0';
+import { buildWorld, setupEnvironment } from './world.js?v=1.2.0';
+import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.2.0';
+import { FX } from './fx.js?v=1.2.0';
+import { Vehicle } from './vehicle.js?v=1.2.0';
+import { sfx } from './audio.js?v=1.2.0';
+import { WEAPONS, MISSIONS } from './data.js?v=1.2.0';
+import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.2.0';
 
 const GRAV = 9.81;
+const BINOC_ZOOM = 9;
+export const RANKS = ['Recruta', 'Soldado', 'Cabo', 'Sargento', 'Tenente', 'Capitão', 'Elite', 'Lenda'];
+// patente da missao: estrelas, precisao, tiros na cabeca, rapidez e discricao
+function rankFor(stars, acc, headR, timeR, civil, alertM) {
+  let pts = stars * 14 + acc * 22 + headR * 18 + clamp(1.6 - timeR, 0, 1) * 12 + (alertM < 20 ? 6 : 0);
+  if (civil) pts -= 30;
+  const i = clamp(Math.floor(pts / 11.5), 0, RANKS.length - 1);
+  return { i, name: RANKS[i], pts: Math.round(pts) };
+}
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
 
+let LENS = null;
+function lensTex() {
+  // vidro com revestimento: fundo azul esverdeado, reflexo em arco e brilho do ceu
+  if (LENS) return LENS;
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
+  let g = x.createRadialGradient(S * 0.45, S * 0.4, 4, S / 2, S / 2, S / 2); g.addColorStop(0, '#2a5a6a'); g.addColorStop(0.55, '#0e2430'); g.addColorStop(0.85, '#1a1030'); g.addColorStop(1, '#05060a');
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  g = x.createLinearGradient(0, 0, 0, S * 0.5); g.addColorStop(0, 'rgba(210,235,255,0.55)'); g.addColorStop(1, 'rgba(210,235,255,0)');
+  x.fillStyle = g; x.beginPath(); x.ellipse(S * 0.5, S * 0.32, S * 0.36, S * 0.18, 0, Math.PI, 0); x.fill();
+  x.strokeStyle = 'rgba(255,255,255,0.85)'; x.lineWidth = 4; x.beginPath(); x.arc(S * 0.5, S * 0.5, S * 0.34, Math.PI * 1.1, Math.PI * 1.45); x.stroke();
+  x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.arc(S * 0.66, S * 0.3, 5, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = 'rgba(160,90,220,0.35)'; x.lineWidth = 3; x.beginPath(); x.arc(S * 0.5, S * 0.5, S * 0.44, 0, Math.PI * 2); x.stroke();
+  LENS = new THREE.CanvasTexture(c); LENS.colorSpace = THREE.SRGBColorSpace; return LENS;
+}
 function makeRifleModel(color) {
   // rifle em primeira pessoa detalhado: coronha, cano, freio de boca, luneta, ferrolho animado
   const g = new THREE.Group();
@@ -18,7 +42,7 @@ function makeRifleModel(color) {
   const metal = new THREE.MeshStandardMaterial({ color: 0x1b1d20, roughness: 0.32, metalness: 0.92 });
   const metal2 = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.45, metalness: 0.8 });
   const rubber = new THREE.MeshStandardMaterial({ color: 0x0e0e0e, roughness: 0.95 });
-  const glass = new THREE.MeshPhysicalMaterial({ color: 0x0a1622, roughness: 0.02, metalness: 0.2, clearcoat: 1, emissive: 0x081a2c, emissiveIntensity: 0.6 });
+  const glass = new THREE.MeshBasicMaterial({ map: lensTex(), toneMapped: true });
   const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, parent = g) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); parent.add(o); return o; };
   const RB = (w, h, d, r) => new RoundedBoxGeometry(w, h, d, 2, r);
   // coronha e chassi
@@ -62,8 +86,9 @@ function makeRifleModel(color) {
   add(new THREE.CylinderGeometry(0.005, 0.005, 0.07, 8), metal, 0.035, -0.012, 0, 0, 0, Math.PI / 2 + 0.4, handle);
   add(new THREE.SphereGeometry(0.014, 12, 10), metal, 0.068, -0.026, 0, 0, 0, 0, handle);
   // bipe
-  const bl = add(new THREE.CylinderGeometry(0.007, 0.007, 0.26, 6), metal2, 0.03, -0.12, -0.47); bl.rotation.z = 0.32; bl.rotation.x = -0.25;
-  const br = add(new THREE.CylinderGeometry(0.007, 0.007, 0.26, 6), metal2, -0.03, -0.12, -0.47); br.rotation.z = -0.32; br.rotation.x = -0.25;
+  // bipe dobrado sob o guarda mao
+  add(RB(0.05, 0.02, 0.04, 0.006), metal2, 0, -0.035, -0.5);
+  for (const sx of [1, -1]) { add(new THREE.CylinderGeometry(0.0065, 0.0065, 0.24, 6), metal2, 0.016 * sx, -0.042, -0.39, Math.PI / 2 + 0.04); add(RB(0.014, 0.012, 0.02, 0.004), rubber, 0.016 * sx, -0.044, -0.265); }
   // maos com luva
   const glove = new THREE.MeshStandardMaterial({ color: 0x24251f, roughness: 0.9 });
   add(new THREE.CapsuleGeometry(0.035, 0.06, 4, 10), glove, 0.0, -0.06, 0.13, 0.5, 0, 0);
@@ -107,7 +132,9 @@ export class Game {
     if (this.rifle) this.camera.remove(this.rifle);
     this.rifle = makeRifleModel(this.weapon().color); this.rifle.scale.setScalar(0.85); this.rifle.rotation.y = -0.03; this.camera.add(this.rifle);
     const r = rng(mission.id.charCodeAt(0) * 13 + mission.id.charCodeAt(1));
-    this.actors = mission.actors.map(d => { const a = new Actor(d, this.world, r); a.attach(scene); return a; });
+    this.vehicles = (mission.vehicles || []).map(v => { const o = new Vehicle(v, this.world, scene); this.world.colliders.push(...o.colliders); return o; });
+    this.actors = mission.actors.map(d => { const a = new Actor(d, this.world, r); if (d.ride != null && this.vehicles[d.ride]) a.setRide(this.vehicles[d.ride], d.rideOff); a.attach(scene); return a; });
+    this.binoc = false; this.binK = 0; this.boltLift = 0; this.tagCount = 0; this.tagHintShown = false;
     if (menuMode) this.actors.forEach(a => { if (a.kind === 'hostage') a.state = 'idle'; });
     const p = this.world.player; this.camera.position.copy(p.pos); this.baseYaw = p.yaw; this.yaw = p.yaw; this.pitch = p.pitch;
     this.windBase = mission.wind; this.wind = new THREE.Vector3(); this.t = 0;
@@ -133,7 +160,11 @@ export class Game {
     this.camera.far = q === 'baixa' ? 1800 : q === 'media' ? 2800 : 4000; this.camera.updateProjectionMatrix();
     if (this.scene) this.scene.traverse(o => { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); } });
   }
-  begin() { this.mode = 'play'; this.ui.showHud(true); }
+  begin() {
+    this.mode = 'play'; this.ui.showHud(true); this.ui.binoc(false);
+    const m = this.mission; const tip = m.hint || (MISSIONS.indexOf(m) < 2 ? 'Dica: use o BINÓCULO para marcar os inimigos.' : null);
+    if (tip) setTimeout(() => { if (this.mission === m && this.mode === 'play') this.ui.toast(tip); }, 1200);
+  }
   // ---------- ENTRADAS ----------
   aim(dx, dy) {
     if (this.mode !== 'play') return;
@@ -141,8 +172,29 @@ export class Game {
     this.yaw -= dx * k; this.pitch -= dy * k; this.aimVX += dx; this.aimVY += dy;
     this.yaw = clamp(this.yaw, this.baseYaw - 1.35, this.baseYaw + 1.35); this.pitch = clamp(this.pitch, -0.8, 0.35);
   }
+  toggleBinoc(force) {
+    if (this.mode !== 'play') return;
+    const v = force != null ? force : !this.binoc; if (v === this.binoc) return;
+    this.binoc = v; if (v && this.scoped) { this.scoped = false; this.ui.scope(false); }
+    sfx.zoom(); this.ui.binoc(v);
+    if (v && !this.tagHintShown) { this.tagHintShown = true; this.ui.toast('Mantenha o centro sobre um inimigo para marcar'); }
+  }
+  // marcacao: olhar um inimigo pelo binoculo (ou pela luneta) por um instante deixa ele marcado
+  updateTags(dt) {
+    if (this.mode !== 'play') return;
+    const look = this.binoc ? 0.16 : (this.scoped && this.scopeK > 0.8 ? 0.07 : 0); if (!look) return;
+    const cam = this.camera; const v = tmpV2;
+    for (const a of this.actors) {
+      if (!a.alive || a.tagged || !(a.kind === 'merc' || a.kind === 'hvt')) continue;
+      v.copy(a.pos); v.y += 1.0 * a.scale; v.project(cam);
+      const d = Math.hypot(v.x * cam.aspect, v.y) * 0.5;
+      if (v.z < 1 && d < look) { a.tagT = (a.tagT || 0) + dt; if (a.tagT > (this.binoc ? 0.3 : 0.45)) { a.tagged = true; this.tagCount++; sfx.ui(); this.ui.toast(a.kind === 'hvt' ? 'Alvo principal marcado' : 'Inimigo marcado'); } }
+      else a.tagT = Math.max(0, (a.tagT || 0) - dt * 0.5);
+    }
+  }
   toggleScope(force) {
     if (this.mode !== 'play') return;
+    if (this.binoc) this.toggleBinoc(false);
     const zs = this.stats().zooms;
     if (force === false) { this.scoped = false; }
     else if (!this.scoped) { this.scoped = true; this.zoomIdx = 0; }
@@ -168,10 +220,12 @@ export class Game {
   // ---------- TIRO ----------
   fire() {
     if (this.mode !== 'play') return;
+    if (this.binoc) { this.toggleBinoc(false); return; }
     const s = this.stats();
     if (this.reloadT > 0 || this.boltT > 0) return;
     if (this.ammo <= 0) { sfx.empty(); this.reload(); return; }
     this.ammo--; this.st.shots++; this.boltT = s.bolt;
+    if (this.world.life) for (const l of this.world.life) if (l.scatter) l.scatter(this.camera.position);
     sfx.shot(s.id === 'trovao' ? 1.5 : 1);
     if (s.bolt > 0.5) sfx.bolt(0.35); else sfx.shell(0.3);
     const cam = this.camera; cam.updateMatrixWorld();
@@ -316,6 +370,7 @@ export class Game {
   }
   finish(win, reason, lastActor) {
     if (this.result) return;
+    if (this.binoc) { this.binoc = false; this.ui.binoc(false); }
     const m = this.mission, st = this.st;
     const acc = st.shots ? st.hits / st.shots : 0;
     let stars = 0, money = 0;
@@ -323,7 +378,9 @@ export class Game {
       stars = 1 + (acc >= 0.7 ? 1 : 0) + (this.elapsed <= m.par ? 1 : 0); if (st.civil) stars = 1;
       money = m.reward + st.heads * 150 + st.optional * 120 + stars * 150; if (st.civil) money = Math.round(money * 0.5);
     }
-    this.result = { win, reason, stars, money, acc, time: this.elapsed, heads: st.heads, kills: st.kills, shots: st.shots, civil: st.civil };
+    const rank = win ? rankFor(stars, acc, st.kills ? st.heads / st.kills : 0, this.elapsed / m.par, st.civil, this.alertMeter) : null;
+    this.result = { win, reason, stars, money, acc, time: this.elapsed, heads: st.heads, kills: st.kills, shots: st.shots, civil: st.civil, rank };
+    if (win && rank) { const sv = this.save; sv.rank = sv.rank || {}; const prev = sv.rank[m.id] ?? -1; this.result.newRank = rank.i > prev; sv.rank[m.id] = Math.max(prev, rank.i); }
     if (win) { const sv = this.save; sv.money += money; sv.done[m.id] = true; sv.stars[m.id] = Math.max(sv.stars[m.id] || 0, stars); const bt = sv.best[m.id]; if (!bt || this.elapsed < bt) sv.best[m.id] = Math.round(this.elapsed); this.store.writeSave(sv); }
     this.endT = 0;
     if (!this.killcam) { this.mode = 'ending'; if (win) this.ui.banner('MISSÃO CUMPRIDA', true); else { this.ui.banner('MISSÃO FALHOU', false); sfx.fail(); } }
@@ -358,7 +415,11 @@ export class Game {
     }
     if (this.mode === 'ending') { this.endT += real; if (this.endT > 1.8) { this.mode = 'result'; this.ui.showResult(this.result); } }
     const pp = cam.position;
-    for (const a of this.actors) a.update(dt, pp);
+    // na camera lenta o alvo fica parado ate a bala chegar: o tiro mostrado e o tiro previsto
+    const freeze = this.mode === 'killcam' && this.killcam && this.killcam.phase === 'fly';
+    const adt = freeze ? 0 : dt;
+    if (this.vehicles) for (const v of this.vehicles) v.update(adt);
+    for (const a of this.actors) { a.update(adt, pp); a.root.updateMatrixWorld(); }
     this.stepBullets(dt);
     this.fx.update(dt);
     for (const f of this.world.flags) f.update(this.t, this.wind);
@@ -384,10 +445,16 @@ export class Game {
     else { this.breath = Math.min(1, this.breath + dt * 0.22); }
     if (this.shake > 0) this.shake -= dt;
     // zoom
-    const zs = s.zooms; const target = this.scoped ? this.baseFov / zs[Math.min(this.zoomIdx, zs.length - 1)] : this.baseFov;
-    this.fov = damp(this.fov, target, 14, dt); this.scopeK = damp(this.scopeK, this.scoped ? 1 : 0, 14, dt);
+    // ferrolho: em armas de ferrolho a luneta sai um instante para mostrar o ciclo
+    const lifting = this.scoped && this.boltAnim >= 0 && this.boltAnim < 0.88 && s.bolt > 0.5 && this.save.settings.boltLift !== false;
+    this.boltLift = damp(this.boltLift, lifting ? 1 : 0, 16, dt); this.ui.scopeLift(this.scoped && this.boltLift > 0.5);
+    const zs = s.zooms; const sc = this.scoped && this.boltLift < 0.5;
+    const target = this.binoc ? this.baseFov / BINOC_ZOOM : sc ? this.baseFov / zs[Math.min(this.zoomIdx, zs.length - 1)] : this.scoped ? this.baseFov / 2.2 : this.baseFov;
+    this.fov = damp(this.fov, target, 14, dt); this.scopeK = damp(this.scopeK, sc ? 1 : 0, 14, dt);
+    this.binK = damp(this.binK || 0, this.binoc ? 1 : 0, 12, dt);
     cam.fov = this.fov; cam.updateProjectionMatrix();
-    this.rifle.visible = this.scopeK < 0.6;
+    this.rifle.visible = this.scopeK < 0.6 && this.binK < 0.3;
+    this.updateTags(dt);
     // atraso da arma ao mover a mira, mola do recuo e ciclo do ferrolho
     this.lagX = damp(this.lagX, clamp(this.aimVX * 0.0016, -0.05, 0.05), 10, dt); this.lagY = damp(this.lagY, clamp(this.aimVY * 0.0016, -0.04, 0.04), 10, dt); this.aimVX = 0; this.aimVY = 0;
     this.rkv += (-this.rk * 220 - this.rkv * 18) * dt; this.rk += this.rkv * dt;
@@ -404,13 +471,13 @@ export class Game {
     }
     // balanco da mira
     const t = this.t; let amp = (0.0034 * (1 - s.stab) + 0.00025) * (this.scoped ? 1 : 0.5);
-    if (this.holding) amp *= 0.1; if (this.shake > 0) amp *= 2.4;
+    if (this.holding) amp *= 0.1; if (this.shake > 0) amp *= 2.4; if (this.binoc) amp = 0.0006;
     const swx = amp * (Math.sin(t * 0.83) * 0.7 + Math.sin(t * 1.91 + 1) * 0.3);
     const swy = amp * (Math.sin(t * 1.13 + 2) * 0.6 + Math.sin(t * 0.47) * 0.4) + (this.holding ? 0 : Math.sin(t * 1.5) * amp * 0.6);
     this.kick = damp(this.kick, 0, 7, dt); this.kickYaw = damp(this.kickYaw, 0, 7, dt);
     this.camShake = Math.max(0, this.camShake - dt * 3.5); const cs = this.camShake * this.camShake * (this.scoped ? 0.004 : 0.012);
     cam.rotation.set(this.pitch + swy + this.kick + (Math.random() - 0.5) * cs, this.yaw + swx + this.kickYaw + (Math.random() - 0.5) * cs, (Math.random() - 0.5) * cs * 0.5, 'YXZ');
-    RIM.uRim.value = this.scoped ? 0.58 : 0.32; RIM.uFogK.value = this.scoped ? 0.3 : 0.45;
+    RIM.uRim.value = this.scoped ? 0.58 : 0.22; RIM.uFogK.value = this.scoped ? 0.3 : 0.45;
     cam.position.copy(this.world.player.pos);
     cam.updateMatrixWorld();
     // distancia na mira (rangefinder)
