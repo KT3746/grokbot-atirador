@@ -240,7 +240,7 @@ export function makeTraffic(scene, q, lanes) {
   im.userData.onHit = (id, point) => { const c = cars[id]; if (!c) return 'metal'; c.hit = 25; c.panic = 0; return point.y - (c.L.axis === 'z' ? 0.04 : 0.12) > 0.98 ? 'glass' : 'metal'; };
   cars.forEach(place);
   return {
-    obj: im, collider: im,
+    obj: im, collider: im, _dbgHit: () => cars.some(c => c.hit > 0),
     scatter() { for (const c of cars) if (c.hit <= 0) c.panic = 10 + (c.idx % 5); },
     update(dt) {
       T += dt;

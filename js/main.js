@@ -73,8 +73,8 @@ const FinalShader = {
       float vig = 1.0 - smoothstep(uR * 0.55, uR * 1.02, d) * 0.6 * uK - (1.0 - uK) * smoothstep(0.3, 1.05, d) * uVig;
       c *= vig;
       if (uNV > 0.001) { // visao noturna: verde, ganho alto, chiado e linhas
-        float L = dot(c, vec3(0.2126, 0.7152, 0.0722)); float gg = pow(clamp(L * 5.5, 0.0, 1.0), 0.75);
-        vec3 nv = vec3(0.3, 1.0, 0.45) * (0.05 + gg * 0.95); nv *= 0.92 + 0.08 * sin(vUv.y * 1400.0); nv += (hash(vUv * 517.0) - 0.5) * 0.13;
+        float L = dot(c, vec3(0.2126, 0.7152, 0.0722)); float gg = smoothstep(0.0, 1.0, pow(clamp(L * 3.2, 0.0, 1.0), 0.8));
+        vec3 nv = vec3(0.3, 1.0, 0.45) * (0.05 + gg * 0.95); nv *= 0.92 + 0.08 * sin(vUv.y * 1400.0); nv += (hash(vUv * 517.0) - 0.5) * 0.08;
         nv *= vig; c = mix(c, nv, uNV); }
       c += (hash(vUv * 913.0) - 0.5) * uGrain;
       gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0); }`,

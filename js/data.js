@@ -174,7 +174,7 @@ export const MISSIONS = [
   },
   {
     id: 'd4', map: 'deserto', name: 'Tempestade de Areia', time: 240, par: 120, reward: 5200, req: 'd3',
-    sky: { elev: 18, azim: 200, turb: 14, ray: 2.2, fog: 0.0019, exposure: 0.5, fogMul: 0.8, fogTint: 0xc8945a },
+    sky: { elev: 18, azim: 200, turb: 14, ray: 2.2, fog: 0.0019, exposure: 0.46, fogMul: 0.72, fogTint: 0xb07a40 },
     weather: 'sand',
     wind: { speed: 7.0, dir: 100, gust: true },
     brief: 'Uma tempestade de areia cobre a vila. O vento muda de força e de direção o tempo todo. Derrube os cinco guardas dos Corvos Negros. Espere o vento acalmar para atirar.',

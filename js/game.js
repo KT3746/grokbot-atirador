@@ -512,7 +512,7 @@ export class Game {
     this.kick = damp(this.kick, 0, 7, dt); this.kickYaw = damp(this.kickYaw, 0, 7, dt);
     this.camShake = Math.max(0, this.camShake - dt * 3.5); const cs = this.camShake * this.camShake * (this.scoped ? 0.004 : 0.012);
     cam.rotation.set(this.pitch + swy + this.kick + (Math.random() - 0.5) * cs, this.yaw + swx + this.kickYaw + (Math.random() - 0.5) * cs, (Math.random() - 0.5) * cs * 0.5, 'YXZ');
-    RIM.uRim.value = this.scoped ? 0.58 : 0.22; RIM.uFogK.value = this.scoped ? 0.3 : 0.45;
+    RIM.uRim.value = (this.scoped ? 0.58 : 0.22) * (1 + 1.4 * (this.nvK || 0)); RIM.uFogK.value = this.scoped ? 0.3 : 0.45;
     cam.position.copy(this.world.player.pos);
     cam.updateMatrixWorld();
     // distancia na mira (rangefinder)
