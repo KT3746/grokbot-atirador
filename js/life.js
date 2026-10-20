@@ -265,69 +265,103 @@ export function makeTraffic(scene, q, lanes, opts = {}) {
   im.userData.onHit = (id, point) => { const c = cars[id]; if (!c) return 'metal'; c.hit = 25; c.panic = 0; return point.y - 0.06 > 0.98 ? 'glass' : 'metal'; };
   cars.forEach(place);
 
-  // ---------- pedestres nas faixas ----------
+  // ---------- pedestres nas faixas: pernas e bracos andando, fogem para os predios ----------
   const crossings = [];
-  const xs = opts.cwX || [-70, 70], zs = opts.cwZ || [-70, -350];
+  const xs = opts.cwX || [-140, -70, 70, 140], zs = opts.cwZ || [-70, -140, -350];
   for (const X of xs) for (const Z of zs) {
     crossings.push({ axis: 'z', X, Z, fixed: Z + 11.5, a: X - 9.5, b: X + 9.5, open: [9.5, 22.5] }); // atravessa a rua norte sul
     crossings.push({ axis: 'x', X, Z, fixed: X + 11.5, a: Z - 9.5, b: Z + 9.5, open: [20.5, 33.5] }); // atravessa a rua leste oeste
   }
   const perCw = q === 'baixa' ? 1 : 2; const peds = [];
-  crossings.forEach((cw) => { for (let k = 0; k < perCw; k++) peds.push({ cw, side: r() < 0.5 ? 0 : 1, u: 0, state: 'wait', delay: r() * 2.2, sp: 1.35 + r() * 0.3, off: (r() - 0.5) * 2.2, panic: 0, down: false, idx: peds.length, x: 0, z: 0, ph: r() * 6 }); });
-  const pedBody = (() => { const parts = []; const col = (g, c) => { const cc = new THREE.Color(c); const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = cc.r; a[i * 3 + 1] = cc.g; a[i * 3 + 2] = cc.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g.toNonIndexed ? g : g); };
-    let g = new THREE.BoxGeometry(0.15, 0.82, 0.18); g.translate(0.1, 0.41, 0); col(g, 0x2a2c33);
-    g = new THREE.BoxGeometry(0.15, 0.82, 0.18); g.translate(-0.1, 0.41, 0); col(g, 0x2a2c33);
-    g = new THREE.BoxGeometry(0.42, 0.62, 0.24); g.translate(0, 1.13, 0); col(g, 0xffffff);
-    g = new THREE.BoxGeometry(0.11, 0.56, 0.12); g.translate(0.27, 1.1, 0); col(g, 0xffffff);
-    g = new THREE.BoxGeometry(0.11, 0.56, 0.12); g.translate(-0.27, 1.1, 0); col(g, 0xffffff);
-    g = new THREE.SphereGeometry(0.115, 10, 8); g.translate(0, 1.6, 0); col(g, 0xd8a888);
-    return mergeGeometries(parts.map(p => p.index ? p.toNonIndexed() : p)); })();
-  const pim = new THREE.InstancedMesh(pedBody, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), Math.max(1, peds.length)); pim.castShadow = true; pim.frustumCulled = false; pim.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  pim.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, -340), 2000); pim.count = peds.length;
-  const ppal = [0xc0392b, 0x2e86c1, 0xf1c40f, 0x27ae60, 0xecf0f1, 0x8e44ad, 0xe67e22, 0x5d6d7e];
-  peds.forEach((p, i) => pim.setColorAt(i, C.set(ppal[Math.floor(r() * ppal.length)])));
-  scene.add(pim);
-  pim.userData.surf = 'body';
-  pim.userData.onHit = (id) => { const p = peds[id]; if (!p || p.down) return 'body'; p.down = true; for (const o of peds) o.panic = 12; for (const c of cars) if (c.hit <= 0) c.panic = 10; return 'civil'; };
+  crossings.forEach((cw) => { for (let k = 0; k < perCw; k++) peds.push({ cw, side: r() < 0.5 ? 0 : 1, u: 0, state: 'wait', delay: r() * 2.2, sp: 1.35 + r() * 0.3, off: (r() - 0.5) * 2.2, panic: 0, down: false, idx: peds.length, x: 0, z: 0, y: 0.1, yaw: 0, ph: r() * 6, walk: 0, gone: 0 }); });
+  const NP = Math.max(1, peds.length);
+  const pg = (w, h, d, ty) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(0, ty, 0); return g; };
+  const head = new THREE.SphereGeometry(0.115, 10, 8); head.translate(0, 1.6, 0);
+  const parts = {
+    torso: pg(0.42, 0.62, 0.24, 1.13), head,
+    legL: pg(0.15, 0.82, 0.18, -0.41), legR: pg(0.15, 0.82, 0.18, -0.41),
+    armL: pg(0.1, 0.58, 0.12, -0.29), armR: pg(0.1, 0.58, 0.12, -0.29),
+  };
+  const pivots = { legL: [0.1, 0.84, 0], legR: [-0.1, 0.84, 0], armL: [0.27, 1.4, 0], armR: [-0.27, 1.4, 0] };
+  const pmat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+  const PIM = {};
+  const shirt = [0xc0392b, 0x2e86c1, 0xf1c40f, 0x27ae60, 0xecf0f1, 0x8e44ad, 0xe67e22, 0x5d6d7e], pants = [0x2a2c33, 0x3a3226, 0x1d2a44, 0x4a4a4a, 0x22262a], skinP = [0xe0b48f, 0xc68e63, 0x9c6a45, 0x6e4a32, 0xf0c9a5];
+  const pc = peds.map(() => ({ s: shirt[Math.floor(r() * shirt.length)], p: pants[Math.floor(r() * pants.length)], k: skinP[Math.floor(r() * skinP.length)] }));
+  for (const k of Object.keys(parts)) {
+    const m = new THREE.InstancedMesh(parts[k], pmat, NP); m.castShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    m.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, -340), 2000); m.count = peds.length;
+    peds.forEach((p, i) => m.setColorAt(i, C.set(k === 'head' ? pc[i].k : k.startsWith('leg') ? pc[i].p : pc[i].s)));
+    m.userData.surf = 'body'; scene.add(m); PIM[k] = m;
+  }
+  const onPedHit = (id) => { const p = peds[id]; if (!p || p.down || p.state === 'gone') return 'body'; p.down = true; for (const o of peds) { o.panic = 12; if (Math.hypot(o.x - p.x, o.z - p.z) < 120) startFlee(o); } for (const c of cars) if (c.hit <= 0) c.panic = 10; return 'civil'; };
+  for (const k of Object.keys(PIM)) PIM[k].userData.onHit = onPedHit;
   const inWin = (ph, w) => { const a = w[0] % CYC, e = w[1] % CYC; return a < e ? ph >= a && ph < e : ph >= a || ph < e; };
   const winAge = (ph, w) => ((ph - w[0]) % CYC + CYC) % CYC;
-  const placePed = (p, t) => {
-    const cw = p.cw; const span = cw.b - cw.a; const f = p.state === 'cross' ? (p.side === 0 ? p.u : 1 - p.u) : (p.side === 0 ? 0 : 1);
-    const along = cw.a - 1.2 + f * (span + 2.4); const lat = p.off;
-    let x, z, yaw; if (cw.axis === 'z') { x = along; z = cw.fixed + lat; yaw = p.state === 'cross' ? (p.side === 0 ? Math.PI / 2 : -Math.PI / 2) : (p.side === 0 ? Math.PI / 2 : -Math.PI / 2) + Math.sin(t * 0.3 + p.ph) * 0.6; }
-    else { z = along; x = cw.fixed + lat; yaw = p.state === 'cross' ? (p.side === 0 ? 0 : Math.PI) : (p.side === 0 ? 0 : Math.PI) + Math.sin(t * 0.3 + p.ph) * 0.6; }
-    p.x = x; p.z = z; const walking = p.state === 'cross' && !p.down; const bob = walking ? Math.abs(Math.sin(t * (p.panic > 0 ? 9 : 5.5) + p.ph)) * 0.05 : 0;
-    P3.set(x, (cw.axis === 'z' ? 0.04 : 0.12) + (f > 0.02 && f < 0.98 ? 0 : 0.11) + bob, z);
-    if (p.down) { const qd = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2); Q.setFromAxisAngle(Y, yaw).multiply(qd); P3.y = 0.18; } else Q.setFromAxisAngle(Y, yaw + (walking ? Math.sin(t * 5.5 + p.ph) * 0.06 : 0));
-    M.compose(P3, Q, S1); pim.setMatrixAt(p.idx, M);
+  // fugir: corre para dentro do quarteirao mais perto (entra no predio) e some
+  function startFlee(p) {
+    if (p.down || p.state === 'gone' || p.state === 'flee') return;
+    const X = p.cw.X, Z = p.cw.Z; let best = null, bd = 1e9;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const cx = X + sx * 35, cz = Z + sz * 35; const d = Math.hypot(cx - p.x, cz - p.z); if (d < bd) { bd = d; best = { x: cx, z: cz }; } }
+    p.state = 'flee'; p.fx = best.x; p.fz = best.z; p.fleeD = 0; p.panic = 12;
+  }
+  const B = new THREE.Matrix4(), L4 = new THREE.Matrix4(), R4 = new THREE.Matrix4(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0), QD = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+  const placePed = (p, t, dt) => {
+    const i = p.idx;
+    if (p.state === 'gone') { for (const k in PIM) PIM[k].setMatrixAt(i, ZERO); return; }
+    let moving = false;
+    if (p.state === 'flee') { moving = true; }
+    else {
+      const cw = p.cw; const span = cw.b - cw.a; const f = p.state === 'cross' ? (p.side === 0 ? p.u : 1 - p.u) : (p.side === 0 ? 0 : 1);
+      const along = cw.a - 1.2 + f * (span + 2.4); const lat = p.off; const fwd = p.side === 0 ? 1 : -1;
+      if (cw.axis === 'z') { p.x = along; p.z = cw.fixed + lat; p.yaw = fwd > 0 ? Math.PI / 2 : -Math.PI / 2; } else { p.z = along; p.x = cw.fixed + lat; p.yaw = fwd > 0 ? 0 : Math.PI; }
+      if (p.state !== 'cross') p.yaw += Math.sin(t * 0.3 + p.ph) * 0.6; else moving = true;
+      p.y = (cw.axis === 'z' ? 0.04 : 0.12) + (f > 0.02 && f < 0.98 ? 0 : 0.11);
+    }
+    if (p.down) moving = false;
+    const spd = p.state === 'flee' ? 3.4 : p.sp * (p.panic > 0 ? 2.4 : 1);
+    if (moving) p.walk += (dt || 0) * spd * 4.0; const sw = moving ? Math.sin(p.walk) : 0; const run = p.state === 'flee' || p.panic > 0;
+    const bob = moving ? Math.abs(Math.cos(p.walk)) * (run ? 0.07 : 0.04) : 0;
+    P3.set(p.x, (p.down ? 0.18 : p.y + bob), p.z); Q.setFromAxisAngle(Y, p.yaw); if (p.down) Q.multiply(QD);
+    if (run && !p.down) Q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.18));
+    B.compose(P3, Q, S1);
+    PIM.torso.setMatrixAt(i, B); PIM.head.setMatrixAt(i, B);
+    const amp = run ? 0.75 : 0.45;
+    for (const k of ['legL', 'legR', 'armL', 'armR']) {
+      const pv = pivots[k]; const sgn = (k === 'legL' || k === 'armR') ? 1 : -1; const a = p.down ? 0 : sw * amp * sgn * (k.startsWith('arm') ? (run ? 1.2 : 0.9) : 1) + (k.startsWith('arm') && run ? -0.5 : 0);
+      L4.makeRotationX(a); L4.setPosition(pv[0], pv[1], pv[2]); R4.multiplyMatrices(B, L4); PIM[k].setMatrixAt(i, R4);
+    }
   };
-  peds.forEach(p => placePed(p, 0));
+  peds.forEach(p => placePed(p, 0, 0));
   // pedestre na frente do carro (na faixa dele)
   const pedAhead = (c) => {
     let best = 1e9; const L = c.L;
     for (const p of peds) {
-      if (!(p.state === 'cross' || p.down)) continue; const cw = p.cw; if (cw.axis !== L.axis) continue; // atravessa a rua desta faixa
+      if (!(p.state === 'cross' || p.down || p.state === 'flee')) continue;
       if (L.axis === 'z' ? Math.abs(p.x - L.c) > 2.8 : Math.abs(p.z - L.c) > 2.8) continue;
       const sp = sOf(L, p.x, p.z); const d = sp - c.s; if (d > 0 && d < best) best = d;
     }
     return best;
   };
   const brakeV = (d, b) => Math.sqrt(Math.max(0, 2 * b * Math.max(0, d)));
+  const pimList = Object.values(PIM);
 
   return {
-    obj: im, collider: im, colliders: [im, pim], _dbgHit: () => cars.some(c => c.hit > 0), _peds: peds, _cars: cars,
-    scatter() { for (const c of cars) if (c.hit <= 0) c.panic = 10 + (c.idx % 5); for (const p of peds) p.panic = 10; },
+    obj: im, collider: im, colliders: [im, ...pimList], _dbgHit: () => cars.some(c => c.hit > 0), _peds: peds, _cars: cars,
+    scatter() { for (const c of cars) if (c.hit <= 0) c.panic = 10 + (c.idx % 5); for (const p of peds) { p.panic = 10; if (Math.hypot(p.x - LIFE.focus.x, p.z - LIFE.focus.z) < 90) startFlee(p); } },
     update(dt, t) {
       T += dt; const ph = phase();
       // pedestres
       for (const p of peds) {
-        p.panic = Math.max(0, p.panic - dt); if (p.down) { placePed(p, t); continue; }
+        p.panic = Math.max(0, p.panic - dt); if (p.down) { placePed(p, t, dt); continue; }
+        if (p.state === 'gone') { p.gone -= dt; if (p.gone <= 0) { p.state = 'wait'; p.panic = 0; p.delay = r() * 2.2; } placePed(p, t, dt); continue; }
+        if (p.state === 'flee') { const dx = p.fx - p.x, dz = p.fz - p.z, d = Math.hypot(dx, dz) || 1; const st = 3.4 * dt; p.x += dx / d * st; p.z += dz / d * st; p.fleeD += st; p.yaw = Math.atan2(dx, dz); p.y = 0.15;
+          if (p.fleeD > 13 || d < 1) { p.state = 'gone'; p.gone = 30 + r() * 20; } placePed(p, t, dt); continue; }
         const cw = p.cw; const span = cw.b - cw.a + 2.4;
         if (p.state === 'wait') { if (inWin(ph, cw.open) && winAge(ph, cw.open) > p.delay && winAge(ph, cw.open) < 3.5) { p.state = 'cross'; p.u = 0; } }
         else { p.u += dt * p.sp * (p.panic > 0 ? 2.4 : 1) / span; if (p.u >= 1) { p.state = 'wait'; p.side = 1 - p.side; p.delay = r() * 2.2; } }
-        placePed(p, t);
+        placePed(p, t, dt);
       }
-      pim.instanceMatrix.needsUpdate = true;
+      for (const m of pimList) m.instanceMatrix.needsUpdate = true;
       // carros
       lanes.forEach((L, li) => {
         const list = byLane[li]; list.sort((a, b) => a.s - b.s); const n = list.length;
