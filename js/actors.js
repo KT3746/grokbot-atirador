@@ -60,9 +60,9 @@ function torchMats() {
   const beam = (I, L) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
     uniforms: { uI: { value: I }, uC: { value: new THREE.Color(0xfff0cc) }, uL: { value: L } },
     vertexShader: 'uniform float uL; varying float vA; varying vec3 vN; varying vec3 vV; void main(){ vA = position.z / uL; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; vN = normalMatrix * normal; gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'uniform float uI; uniform vec3 uC; varying float vA; varying vec3 vN; varying vec3 vV; void main(){ float e = abs(dot(normalize(vN), normalize(vV))); e = e * e; float f = 1.0 - clamp(vA, 0.0, 1.0); f = f * f * smoothstep(0.0, 0.06, vA); float a = uI * e * f; gl_FragColor = vec4(uC * a, a); }' });
+    fragmentShader: 'uniform float uI; uniform vec3 uC; varying float vA; varying vec3 vN; varying vec3 vV; void main(){ float e = abs(dot(normalize(vN), normalize(vV))); e = 0.25 + 0.75 * e * e; float f = 1.0 - clamp(vA, 0.0, 1.0); f = f * f * smoothstep(0.0, 0.06, vA); float a = uI * e * f; gl_FragColor = vec4(uC * a, a); }' });
   const glare = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c2), color: 0xfff2d8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
-  TORCH = { cone: beam(0.55, 16), core: beam(0.5, 9), glare, pool, lens, coreG: (() => { const g = new THREE.ConeGeometry(0.8, 9, 14, 1, true); g.translate(0, -4.5, 0); g.rotateX(-Math.PI / 2); return g; })(), coneG: (() => { const g = new THREE.ConeGeometry(3.4, 16, 20, 1, true); g.translate(0, -8, 0); g.rotateX(-Math.PI / 2); return g; })(), poolG: (() => { const g = new THREE.PlaneGeometry(1, 1); g.rotateX(-Math.PI / 2); return g; })() };
+  TORCH = { cone: beam(0.75, 16), core: beam(0.6, 9), glare, pool, lens, coreG: (() => { const g = new THREE.ConeGeometry(0.8, 9, 14, 1, true); g.translate(0, -4.5, 0); g.rotateX(-Math.PI / 2); return g; })(), coneG: (() => { const g = new THREE.ConeGeometry(3.4, 16, 20, 1, true); g.translate(0, -8, 0); g.rotateX(-Math.PI / 2); return g; })(), poolG: (() => { const g = new THREE.PlaneGeometry(1, 1); g.rotateX(-Math.PI / 2); return g; })() };
   return TORCH;
 }
 function blobMat() {
@@ -344,7 +344,8 @@ export class Actor {
     if (this.torch && !this.alive) { const T = this.torch; T.cone.visible = false; T.gl.visible = false;
       if (!T.down) { T.down = true; T.fw.set(Math.sin(this.heading), 0, Math.cos(this.heading)); const px = p.x + T.fw.x * 2.2, pz = p.z + T.fw.z * 2.2; T.pool.position.set(px, this.groundY(px, pz) + 0.06, pz); T.pool.scale.set(2.4, 1, 3.4); T.pool.rotation.y = this.heading; } }
     if (this.torch && this.alive) { const T = this.torch; const on = true; T.cone.visible = on; T.pool.visible = on; T.lens.visible = on;
-      if (on) { T.g.getWorldPosition(T.wp); T.fw.set(0, 0, 1).applyQuaternion(this.root.quaternion); T.fw.y = 0; T.fw.normalize(); const sw = Math.sin(performance.now() * 0.0007 + this.r0) * 0.25; T.g.rotation.y = sw;
+      if (on) { T.g.getWorldPosition(T.wp); T.fw.set(0, 0, 1).applyQuaternion(this.root.quaternion); T.fw.y = 0; T.fw.normalize(); const look = this.state === 'investigate' || this.state === 'alert'; const sw = Math.sin(performance.now() * 0.0007 + this.r0) * (look ? 0.12 : 0.25); T.g.rotation.y = sw;
+        const hz = Math.hypot(playerPos.x - T.wp.x, playerPos.z - T.wp.z); const wantP = look ? clamp(-Math.atan2(playerPos.y - T.wp.y, hz), -0.7, 0.3) : 0.2; T.cone.rotation.x += (wantP - T.cone.rotation.x) * 0.05;
         const ang = Math.atan2(T.fw.x, T.fw.z) + sw; const px = T.wp.x + Math.sin(ang) * 7, pz = T.wp.z + Math.cos(ang) * 7; T.pool.position.set(px, this.groundY(px, pz) + 0.06, pz); T.pool.rotation.y = ang;
         // brilho forte quando a lanterna aponta para a camera (com um pico curto)
         T.cone.getWorldDirection(T.bd); const tx = playerPos.x - T.wp.x, ty = playerPos.y - T.wp.y, tz = playerPos.z - T.wp.z, d = Math.hypot(tx, ty, tz) || 1;
