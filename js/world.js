@@ -324,7 +324,7 @@ function buildMountain(scene, q, sp) {
   for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; B.box('tent', 1.2, 0.5, 0.6, radio.x + Math.cos(a) * 19, ry + 0.25, radio.z + Math.sin(a) * 19, -a, 1, 1); }
   B.build(scene, mats, colliders, { tent: 'dirt', log: 'wood', wood: 'wood', metal: 'metal' });
   const flags = [makeFlag(scene, camp.x + 4, cy, camp.z - 2, 7), makeFlag(scene, radio.x + 3, ry, radio.z + 3, 6)];
-  const drift = [makeDrift(scene, q === 'baixa' ? 40 : 90, 600, new THREE.Vector3(0, 0, -300), 0xe8eef2, 60, sp.fog > 0.002 ? 0.22 : 0.08, [campH + 4, campH + 40])];
+  const drift = [makeDrift(scene, q === 'baixa' ? 40 : 90, 600, new THREE.Vector3(0, 0, -300), sp.dark ? 0x2a3242 : sp.night ? 0x8a92a8 : 0xe8eef2, 60, sp.dark ? 0.05 : sp.fog > 0.002 ? 0.22 : 0.08, [campH + 4, campH + 40])];
   const py = groundAt(0, 1.5) + 1.5;
   return { anchors: anchors_m, colliders, groundAt, flags, drift, fire, player: { pos: new THREE.Vector3(0, py, 1.5), yaw: 0.05, pitch: -0.3 }, focus: new THREE.Vector3(camp.x, campH, camp.z), env: 'montanha' };
 }
