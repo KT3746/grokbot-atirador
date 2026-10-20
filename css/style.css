@@ -311,6 +311,6 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 #fps { padding: 3px 9px; border-radius: 9px; background: rgba(0, 0, 0, 0.55); font-weight: 800; letter-spacing: 0.5px; opacity: 1; font-variant-numeric: tabular-nums; }
 #fps.good { color: #9dff8a; } #fps.mid { color: #ffd65a; } #fps.bad { color: #ff7a6a; }
 
-#r-replay { margin: 8px auto 0; display: block; font-size: 13px; padding: 7px 16px; border-color: rgba(255, 210, 120, 0.8); }
+#r-replay { border-color: rgba(255, 210, 120, 0.8); color: #ffd27a; }
 #r-replay.hidden { display: none; }
 #letterbox.rp .lb-label { color: #ffd27a; }
