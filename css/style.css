@@ -218,7 +218,7 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 #rotate .logo { align-items: center; }
 #rotate .logo .l1 { font-size: clamp(44px, 15vw, 80px); }
 #rotate .logo .l2 { font-size: clamp(28px, 10vw, 54px); }
-#rotate .tag { opacity: 0.85; font-size: 16px; max-width: 320px; }
+#rotate .tag { opacity: 0.85; font-size: 16px; max-width: 320px; border: 0; padding: 0; margin: 0; }
 #rot-fs { min-height: 68px; font-size: 21px; padding: 14px 30px; width: min(86vw, 360px); box-shadow: 0 8px 30px rgba(226, 154, 38, 0.35); }
 #rotate .rot-hint { display: flex; flex-direction: column; align-items: center; opacity: 0.9; }
 #rotate .rot-hint p { margin: 0; font-size: 16px; line-height: 1.35; }
