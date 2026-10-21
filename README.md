@@ -9,6 +9,10 @@ Jogue: https://kt3746.github.io/grokbot-atirador/
 - Celular: arraste para mirar, botões grandes ZOOM, ATIRAR, PRENDER RESPIRAÇÃO e RECARREGAR
 - PC: mouse com trava do ponteiro, botão direito abre a luneta, rodinha muda o zoom, Shift prende a respiração, R recarrega
 
+## Novidades da versão 1.6.1
+
+- Celular em pé: agora aparece a tela de título com o logo e o botão TELA CHEIA E GIRAR, que coloca o jogo em tela cheia e tenta girar para deitado. O aviso para girar o celular continua.
+
 ## Novidades da versão 1.6.0
 
 - Guardas investigam: quando ouvem um tiro (depende da distância), andam até o lugar do som, procuram e voltam. Se acharem um corpo, chamam o alerta. Um sinal de ? amarelo mostra quem está investigando.

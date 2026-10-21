@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Atirador de Elite</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%2213%22 fill=%22none%22 stroke=%22%23f2b544%22 stroke-width=%223%22/%3E%3Cpath d=%22M16 2v28M2 16h28%22 stroke=%22%23f2b544%22 stroke-width=%222%22/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=1.6.0">
+<link rel="stylesheet" href="css/style.css?v=1.6.1">
 <script type="importmap">
 { "imports": {
   "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -99,7 +99,7 @@
       </div>
       <div class="money-pill" id="t-money">$ 0</div>
     </div>
-    <div class="ver">versão 1.6.0</div>
+    <div class="ver">versão 1.6.1</div>
   </section>
 
   <section id="maps" class="screen hidden">
@@ -172,10 +172,15 @@
 
   <section id="loading" class="screen hidden"><div class="loader"><div class="spin"></div><div id="l-text">Preparando o cenário...</div></div></section>
   <div id="tutorial" class="hidden"><div class="panel tut"><h3>Como jogar</h3><div id="tut-body"></div><button class="btn primary" id="tut-ok">ENTENDI</button></div></div>
-  <div id="rotate"><div class="phone"></div><p>Gire o celular para jogar.<br>O jogo funciona deitado (paisagem).</p></div>
+  <div id="rotate">
+    <div class="logo"><span class="l1">ATIRADOR</span><span class="l2">DE ELITE</span></div>
+    <div class="tag">Missões de precisão contra os Corvos Negros</div>
+    <button class="btn primary" id="rot-fs">TELA CHEIA E GIRAR</button>
+    <div class="rot-hint"><div class="phone"></div><p>Gire o celular para jogar.<br>O jogo funciona deitado (paisagem).</p></div>
+  </div>
   <div id="boot"><div class="loader"><div class="spin"></div><div>Carregando...</div></div></div>
   <div id="err" class="hidden"></div>
 </div>
-<script type="module" src="js/main.js?v=1.6.0"></script>
+<script type="module" src="js/main.js?v=1.6.1"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { clamp, damp, lerp } from './util.js?v=1.6.0';
+import { clamp, damp, lerp } from './util.js?v=1.6.1';
 
 // ---------- materiais compartilhados ----------
 export const RIM = { uRim: { value: 0.32 }, uRimColor: { value: new THREE.Color(0xfff1d8) }, uFogK: { value: 0.45 } };

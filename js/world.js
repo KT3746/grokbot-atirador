@@ -1,10 +1,10 @@
 // Construcao procedural dos cenarios: cidade, montanha e deserto
 import * as THREE from 'three';
-import * as L_ from './life.js?v=1.6.0';
+import * as L_ from './life.js?v=1.6.1';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import * as T from './textures.js?v=1.6.0';
-import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.6.0';
+import * as T from './textures.js?v=1.6.1';
+import { rng, fbm, ridged, noise2, smooth, lerp, clamp } from './util.js?v=1.6.1';
 
 const std = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
 

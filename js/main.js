@@ -4,13 +4,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { Game } from './game.js?v=1.6.0';
-import { UI } from './ui.js?v=1.6.0';
-import { Input } from './input.js?v=1.6.0';
-import { sfx } from './audio.js?v=1.6.0';
-import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.6.0';
-import { setAniso } from './textures.js?v=1.6.0';
-import { LIFE } from './life.js?v=1.6.0';
+import { Game } from './game.js?v=1.6.1';
+import { UI } from './ui.js?v=1.6.1';
+import { Input } from './input.js?v=1.6.1';
+import { sfx } from './audio.js?v=1.6.1';
+import { loadSave, writeSave, MISSIONS, VERSION } from './data.js?v=1.6.1';
+import { setAniso } from './textures.js?v=1.6.1';
+import { LIFE } from './life.js?v=1.6.1';
 
 const $ = (id) => document.getElementById(id);
 const showErr = (m) => { const e = $('err'); e.textContent = 'Erro: ' + m; e.classList.remove('hidden'); };
@@ -121,6 +121,13 @@ function requestFS() {
   } catch (_) { }
 }
 document.addEventListener('pointerdown', () => { sfx.init(); }, { once: true });
+// tela de celular em pe: botao para tela cheia e girar (erros ignorados)
+function fsAndRotate() {
+  const el = document.documentElement; const lock = () => { try { const r = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); if (r && r.catch) r.catch(() => { }); } catch (_) { } };
+  try { const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen; const p = fn ? fn.call(el, { navigationUI: 'hide' }) : null; if (p && p.then) p.then(lock, lock); else lock(); } catch (_) { lock(); }
+}
+$('rot-fs').addEventListener('click', (e) => { e.stopPropagation(); try { sfx.init(); sfx.ui(); } catch (_) { } fsAndRotate(); });
+{ const iv = setInterval(() => { if (game.scene) { $('rotate').classList.add('live'); clearInterval(iv); } }, 400); }
 
 function effQ() { const q = store.save.settings.quality; return q === 'auto' ? autoQ : q; }
 let prScale = 1;

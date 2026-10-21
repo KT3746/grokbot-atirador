@@ -212,8 +212,17 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 .tut ul { margin: 0 0 14px; padding-left: 20px; font-size: 16px; line-height: 1.5; }
 .tut .btn { width: 100%; }
 
-#rotate { position: absolute; inset: 0; z-index: 80; background: #07090c; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-size: 20px; padding: 20px; }
-#rotate .phone { width: 60px; height: 100px; border: 4px solid var(--gold); border-radius: 12px; animation: rot 1.8s ease-in-out infinite; margin-bottom: 20px; }
+#rotate { position: absolute; inset: 0; z-index: 80; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; font-size: 18px; padding: 24px; pointer-events: auto;
+  background: linear-gradient(180deg, rgba(5, 7, 10, 0.25) 0%, rgba(5, 7, 10, 0.55) 55%, rgba(5, 7, 10, 0.92) 100%), radial-gradient(ellipse at 50% 30%, #3a4a5c 0%, #18202a 55%, #07090c 100%); }
+#rotate.live { background: linear-gradient(180deg, rgba(5, 7, 10, 0.25) 0%, rgba(5, 7, 10, 0.55) 55%, rgba(5, 7, 10, 0.92) 100%); }
+#rotate .logo { align-items: center; }
+#rotate .logo .l1 { font-size: clamp(44px, 15vw, 80px); }
+#rotate .logo .l2 { font-size: clamp(28px, 10vw, 54px); }
+#rotate .tag { opacity: 0.85; font-size: 16px; max-width: 320px; }
+#rot-fs { min-height: 68px; font-size: 21px; padding: 14px 30px; width: min(86vw, 360px); box-shadow: 0 8px 30px rgba(226, 154, 38, 0.35); }
+#rotate .rot-hint { display: flex; flex-direction: column; align-items: center; opacity: 0.9; }
+#rotate .rot-hint p { margin: 0; font-size: 16px; line-height: 1.35; }
+#rotate .phone { width: 34px; height: 56px; border: 3px solid var(--gold); border-radius: 8px; animation: rot 1.8s ease-in-out infinite; margin-bottom: 12px; }
 @keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
 @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
 
