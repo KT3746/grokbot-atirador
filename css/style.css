@@ -224,7 +224,7 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 #rotate .rot-hint p { margin: 0; font-size: 16px; line-height: 1.35; }
 #rotate .phone { width: 34px; height: 56px; border: 3px solid var(--gold); border-radius: 8px; animation: rot 1.8s ease-in-out infinite; margin-bottom: 12px; }
 @keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
-@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } #app > :not(#c):not(#rotate):not(#boot):not(#err) { visibility: hidden !important; } #app > :not(#c):not(#rotate):not(#boot):not(#err) * { visibility: hidden !important; } }
 
 @media (max-height: 480px) {
   .screen { padding: 10px calc(16px + var(--safe-r)) 10px calc(16px + var(--safe-l)); }
