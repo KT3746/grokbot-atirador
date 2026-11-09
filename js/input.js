@@ -1,5 +1,5 @@
 // Controles: toque (celular) e mouse/teclado (PC)
-import { sfx } from './audio.js?v=1.7.0';
+import { sfx } from './audio.js?v=1.8.0';
 
 export class Input {
   constructor(game, app, canvas) {

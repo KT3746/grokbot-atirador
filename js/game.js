@@ -1,14 +1,14 @@
 // Nucleo do jogo: missao, mira, balistica, IA, regras, camera lenta
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildWorld, setupEnvironment } from './world.js?v=1.7.0';
-import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.7.0';
-import { LIFE } from './life.js?v=1.7.0';
-import { FX } from './fx.js?v=1.7.0';
-import { Vehicle } from './vehicle.js?v=1.7.0';
-import { sfx } from './audio.js?v=1.7.0';
-import { WEAPONS, MISSIONS } from './data.js?v=1.7.0';
-import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.7.0';
+import { buildWorld, setupEnvironment } from './world.js?v=1.8.0';
+import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.8.0';
+import { LIFE } from './life.js?v=1.8.0';
+import { FX } from './fx.js?v=1.8.0';
+import { Vehicle } from './vehicle.js?v=1.8.0';
+import { sfx } from './audio.js?v=1.8.0';
+import { WEAPONS, MISSIONS } from './data.js?v=1.8.0';
+import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.8.0';
 
 const GRAV = 9.81;
 const BINOC_ZOOM = 9;
@@ -267,8 +267,11 @@ export class Game {
     const pred = this.predict(b);
     if (pred && pred.actor && this.wouldFinish(pred.actor, pred.part)) {
       const flight = Math.max(0.15, pred.t);
-      this.killcam = { b, actor: pred.actor, t: 0, phase: 'fly', flight, scale: clamp(flight / 2.4, 0.03, 0.25), dist: pred.dist, vel: pred.actor.vel ? pred.actor.vel.clone() : new THREE.Vector3(), veh: pred.actor.ride || null };
-      this.mode = 'killcam'; this.ui.killcam(true, Math.round(pred.dist)); sfx.whoosh();
+      // Onda 8: tiro cirúrgico = cabeça + respiração presa
+      const surg = pred.part === 'head' && !!this.holding;
+      this.killcam = { b, actor: pred.actor, t: 0, phase: 'fly', flight, scale: clamp(flight / 2.4, 0.03, 0.25), dist: pred.dist, vel: pred.actor.vel ? pred.actor.vel.clone() : new THREE.Vector3(), veh: pred.actor.ride || null, surg, part: pred.part };
+      this.mode = 'killcam'; this.ui.killcam(true, Math.round(pred.dist), surg); sfx.whoosh();
+      if (surg) this.ui.toast('Tiro cirúrgico!');
       // gravacao para o replay na tela de resultado
       const nodes = []; pred.actor.root.traverse(o => nodes.push(o)); const vr = pred.actor.ride ? pred.actor.ride.root : null;
       // atores perto do alvo tambem entram na gravacao
@@ -376,7 +379,8 @@ export class Game {
         } else {
           this.headStreak = 0;
         }
-        this.ui.popup(part === 'head' ? 'NA CABEÇA!' : actor.kind === 'hvt' ? 'ALVO PRINCIPAL ABATIDO' : 'Abatido', part === 'head' ? 'gold' : 'ok', Math.round(dist) + ' m');
+        const surgNow = part === 'head' && (inKc ? !!(this.killcam && this.killcam.surg) : !!this.holding);
+        this.ui.popup(surgNow ? 'TIRO CIRÚRGICO!' : part === 'head' ? 'NA CABEÇA!' : actor.kind === 'hvt' ? 'ALVO PRINCIPAL ABATIDO' : 'Abatido', part === 'head' ? 'gold' : 'ok', Math.round(dist) + ' m');
         this.ui.hitmark(true); this.buzz(part === 'head' ? [40, 40, 90] : [30, 40, 60]);
         // testemunhas
         let w = 0; for (const a of this.actors) if (a !== actor && a.alive && (a.kind === 'merc' || a.kind === 'hvt') && a.pos.distanceTo(actor.pos) < 22) { if (a.alert(actor.pos)) w++; }

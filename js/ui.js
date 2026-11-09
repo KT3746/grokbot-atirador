@@ -1,8 +1,8 @@
 // Interface: telas, HUD, marcadores, resultados
 import * as THREE from 'three';
-import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.7.0';
-import { sfx } from './audio.js?v=1.7.0';
-import { fmtTime, fmtMoney, clamp } from './util.js?v=1.7.0';
+import { WEAPONS, UPGRADES, MAPS, MISSIONS, missionUnlocked, writeSave, resetSave, totalStars } from './data.js?v=1.8.0';
+import { sfx } from './audio.js?v=1.8.0';
+import { fmtTime, fmtMoney, clamp } from './util.js?v=1.8.0';
 
 const $ = (id) => document.getElementById(id);
 const ART = {
@@ -155,7 +155,7 @@ export class UI {
   }
   // ---------- HUD ----------
   showHud(v) { $('hud').classList.toggle('hidden', !v); if (!v) { $('scope').classList.add('hidden'); } }
-  scope(v) { $('scope').classList.toggle('hidden', !v); $('b-zoom').classList.toggle('on', v); }
+  scope(v) { $('scope').classList.toggle('hidden', !v); $('b-zoom').classList.toggle('on', v); if (!v) $('scope').classList.remove('danger'); document.body.classList.remove('holding-breath'); }
   scopeLift(v) { if (this._lift !== v) { this._lift = v; $('scope').classList.toggle('lift', v); } }
   nv(v) { $('b-nv').classList.toggle('on', v); }
   nvAvail(v) { $('b-nv').classList.toggle('hidden', !v); if (!v) this.nv(false); }
@@ -177,8 +177,20 @@ export class UI {
   replayState(P) { $('rp-slow').classList.toggle('on', P.speed < 1); $('rp-cam').classList.toggle('on', P.camMode > 0); $('rp-cam').textContent = 'CÂMERA ' + (P.camMode + 1); }
   replayPos(f) { if (this.rpDrag) return; const v = String(Math.round(f * 1000)); const rr = $('rp-range'); if (rr.value !== v) rr.value = v; }
   replay(v, dist) { if (v) this.replayState({ speed: 1, camMode: 0 }); $('hud').classList.toggle('kc', !!v); $('rp-ctl').classList.toggle('hidden', !v); $('rp-bar').classList.toggle('hidden', !v); this.rpDrag = false; $('letterbox').classList.toggle('hidden', !v); $('letterbox').classList.toggle('rp', !!v); if (v) { $('kc-dist').textContent = dist + ' m'; $('kc-lab').textContent = 'REPLAY'; } else $('kc-lab').textContent = 'TIRO FINAL'; }
-  killcam(v, dist) { $('hud').classList.toggle('kc', !!v); $('letterbox').classList.toggle('hidden', !v); if (v) { $('kc-dist').textContent = dist + ' m'; $('scope').classList.add('hidden'); } }
-  banner(t, win) { const b = $('banner'); b.textContent = t; b.className = win ? 'win' : 'lose'; }
+  killcam(v, dist, surg) {
+    $('hud').classList.toggle('kc', !!v); $('letterbox').classList.toggle('hidden', !v);
+    $('letterbox').classList.toggle('surg', !!(v && surg));
+    document.body.classList.remove('holding-breath');
+    if (v) {
+      $('kc-dist').textContent = dist + ' m';
+      $('kc-lab').textContent = surg ? 'TIRO CIRÚRGICO' : 'TIRO FINAL';
+      $('scope').classList.add('hidden'); $('scope').classList.remove('danger');
+    } else {
+      $('kc-lab').textContent = 'TIRO FINAL';
+      $('letterbox').classList.remove('surg');
+    }
+  }
+  banner(t, win, surg) { const b = $('banner'); b.textContent = t; b.className = (win ? 'win' : 'lose') + (surg ? ' surg' : ''); }
   hideBanner() { $('banner').className = 'hidden'; }
   setText(id, v) { if (this.cache[id] !== v) { this.cache[id] = v; $(id).textContent = v; } }
   updateHud(g) {
@@ -202,6 +214,7 @@ export class UI {
     $('h-reload').style.width = (g.reloadT > 0 ? (1 - g.reloadT / s.reload) * 100 : g.boltT > 0 ? (1 - g.boltT / s.bolt) * 100 : 100).toFixed(0) + '%';
     $('h-breath').style.width = (g.breath * 100).toFixed(0) + '%'; $('h-breath').style.background = g.shake > 0 ? '#ff6b5e' : g.holding ? '#bfe8ff' : '#8fd0ff';
     $('b-breath').classList.toggle('on', g.holding);
+    document.body.classList.toggle('holding-breath', !!(g.holding && g.mode === 'play' && g.scoped));
     // mira
     const zs = s.zooms; const sd = Math.min(innerHeight * 0.94, innerWidth * 0.62); document.documentElement.style.setProperty('--sd', sd.toFixed(0) + 'px');
     if (g.scoped) {
@@ -212,7 +225,9 @@ export class UI {
         this.setText('sw-text', Math.abs(cw) < 0.3 ? 'Vento: quase nada' : 'Vento ' + Math.abs(cw).toFixed(1).replace('.', ',') + ' m/s ' + (cw > 0 ? '→' : '←') + (lat > 0.05 ? '  desvia ' + (lat < 1 ? Math.round(lat * 100) + ' cm' : lat.toFixed(1).replace('.', ',') + ' m') : ''));
         const fl = $('sw-flag'); const k = Math.min(1, Math.abs(cw) / 8); fl.style.transform = `scaleX(${(cw >= 0 ? 1 : -1)}) skewY(${(-(1 - k) * 50).toFixed(0)}deg) scaleY(${(0.4 + 0.6 * k).toFixed(2)})`;
         $('scope-wind').classList.toggle('gust', !!gs); }
-      const ra = g.rangeHit; this.setText('s-target', ra && ra.alive ? (ra.kind === 'hostage' ? 'REFÉM! NÃO ATIRE' : ra.kind === 'civil' ? 'CIVIL! NÃO ATIRE' : ra.kind === 'hvt' ? 'ALVO PRINCIPAL' : 'INIMIGO') : '');
+      const ra = g.rangeHit; const danger = !!(ra && ra.alive && (ra.kind === 'hostage' || ra.kind === 'civil'));
+      $('scope').classList.toggle('danger', danger);
+      this.setText('s-target', ra && ra.alive ? (ra.kind === 'hostage' ? 'REFÉM! NÃO ATIRE' : ra.kind === 'civil' ? 'CIVIL! NÃO ATIRE' : ra.kind === 'hvt' ? 'ALVO PRINCIPAL' : 'INIMIGO') : '');
       const pd = $('predict');
       if (s.predict && !g.rangeNone) { const o = g.predictOffset(); const fr = g.fov * Math.PI / 180; const px = (o.lat / o.R) / fr * innerHeight; const py = (o.drop / o.R) / fr * innerHeight; pd.classList.remove('hidden'); pd.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`; }
       else pd.classList.add('hidden');

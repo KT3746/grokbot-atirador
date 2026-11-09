@@ -9,7 +9,19 @@ Jogue: https://kt3746.github.io/grokbot-atirador/
 - Celular: arraste para mirar, botões grandes ZOOM, ATIRAR, PRENDER RESPIRAÇÃO e RECARREGAR
 - PC: mouse com trava do ponteiro, botão direito abre a luneta, rodinha muda o zoom, Shift prende a respiração, R recarrega
 
+## Novidades da versão 1.8.0
+
+- Batimento na tela ao prender a respiração na luneta
+- Luneta pisca em vermelho se a mira estiver em refém ou civil
+- Tiro cirúrgico: cabeça + respiração presa na câmera lenta do tiro final
+
 ## Novidades da versão 1.7.0
+
+- Aviso de última bala / pente vazio
+- Sequência de 3 tiros na cabeça
+- Dica de respiração na primeira mira
+
+## Novidades da versão 1.6.1
 
 - Celular em pé: agora aparece a tela de título com o logo e o botão TELA CHEIA E GIRAR, que coloca o jogo em tela cheia e tenta girar para deitado. O aviso para girar o celular continua.
 
