@@ -1,14 +1,14 @@
 // Nucleo do jogo: missao, mira, balistica, IA, regras, camera lenta
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildWorld, setupEnvironment } from './world.js?v=1.6.1';
-import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.6.1';
-import { LIFE } from './life.js?v=1.6.1';
-import { FX } from './fx.js?v=1.6.1';
-import { Vehicle } from './vehicle.js?v=1.6.1';
-import { sfx } from './audio.js?v=1.6.1';
-import { WEAPONS, MISSIONS } from './data.js?v=1.6.1';
-import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.6.1';
+import { buildWorld, setupEnvironment } from './world.js?v=1.7.0';
+import { Actor, RIM, resetActorMaterials } from './actors.js?v=1.7.0';
+import { LIFE } from './life.js?v=1.7.0';
+import { FX } from './fx.js?v=1.7.0';
+import { Vehicle } from './vehicle.js?v=1.7.0';
+import { sfx } from './audio.js?v=1.7.0';
+import { WEAPONS, MISSIONS } from './data.js?v=1.7.0';
+import { rng, clamp, damp, lerp, smooth } from './util.js?v=1.7.0';
 
 const GRAV = 9.81;
 const BINOC_ZOOM = 9;
@@ -141,7 +141,7 @@ export class Game {
     this.windBase = mission.wind; this.wind = new THREE.Vector3(); this.t = 0; this.fogBase = scene.fog ? scene.fog.density : 0; this.gustOn = false;
     this.nv = false; this.nvK = 0; this.ui.nvAvail(!!mission.sky.dark && !menuMode);
     this.scoped = false; this.zoomIdx = 0; this.fov = this.baseFov; this.scopeK = 0;
-    this.ammo = this.stats().mag; this.boltT = 0; this.reloadT = 0; this.breath = 1; this.shake = 0; this.holding = false; this.heartT = 0;
+    this.ammo = this.stats().mag; this.boltT = 0; this.reloadT = 0; this.breath = 1; this.shake = 0; this.holding = false; this.heartT = 0; this.headStreak = 0; this.scopeTipShown = false; this.lastBulletWarned = false;
     this.kick = 0; this.kickYaw = 0; this.aimVX = 0; this.aimVY = 0; this.lagX = 0; this.lagY = 0; this.rk = 0; this.rkv = 0; this.boltAnim = -1; this.camShake = 0; this.bullets = []; this.range = 300; this.rangeT = 0; this.rangeHit = null;
     this.alertMeter = 0; this.timeLeft = mission.time; this.elapsed = 0;
     this.st = { shots: 0, hits: 0, kills: 0, heads: 0, civil: 0, optional: 0 };
@@ -210,6 +210,11 @@ export class Game {
     else if (force === true) return;
     else { this.zoomIdx++; if (this.zoomIdx >= zs.length) { this.scoped = false; this.zoomIdx = 0; } }
     sfx.zoom(); this.ui.scope(this.scoped);
+    // Onda 7: dica de respiração na primeira mira
+    if (this.scoped && !this.scopeTipShown) {
+      this.scopeTipShown = true;
+      this.ui.toast('Prenda a respiração (Shift / botão) pra mirar firme');
+    }
   }
   zoomStep(d) {
     if (this.mode !== 'play') return; const zs = this.stats().zooms;
@@ -234,6 +239,9 @@ export class Game {
     if (this.reloadT > 0 || this.boltT > 0) return;
     if (this.ammo <= 0) { sfx.empty(); this.reload(); return; }
     this.ammo--; this.st.shots++; this.boltT = s.bolt; this.buzz(s.id === 'trovao' ? 45 : 28);
+    // Onda 7: última bala
+    if (this.ammo === 1) this.ui.toast('Última bala no pente!');
+    if (this.ammo === 0) this.ui.toast('Pente vazio — recarregue');
     if (this.world.life) for (const l of this.world.life) if (l.scatter) l.scatter(this.camera.position);
     this.hearShot(s);
     if (this.world.patrol) this.world.patrol.call(LIFE.focus, this.camera.position);
@@ -361,6 +369,13 @@ export class Game {
       if (actor.hp <= 0) {
         actor.kill(dir, part); this.st.kills++; if (part === 'head') this.st.heads++;
         if (this.mission.goal === 'hvt' && actor.kind !== 'hvt') this.st.optional++;
+        // Onda 7: sequência de tiros na cabeça
+        if (part === 'head') {
+          this.headStreak = (this.headStreak || 0) + 1;
+          if (this.headStreak === 3) this.ui.toast('3 tiros na cabeça seguidos!');
+        } else {
+          this.headStreak = 0;
+        }
         this.ui.popup(part === 'head' ? 'NA CABEÇA!' : actor.kind === 'hvt' ? 'ALVO PRINCIPAL ABATIDO' : 'Abatido', part === 'head' ? 'gold' : 'ok', Math.round(dist) + ' m');
         this.ui.hitmark(true); this.buzz(part === 'head' ? [40, 40, 90] : [30, 40, 60]);
         // testemunhas

@@ -341,3 +341,15 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 #rp-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #ffd27a; border: 3px solid #1a1408; }
 .rpb { min-width: 74px; min-height: 44px; padding: 6px 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 210, 120, 0.7); color: #ffd27a; font-weight: 800; font-size: 13px; letter-spacing: 0.06em; }
 .rpb.on { background: rgba(255, 190, 80, 0.85); color: #1a1208; }
+
+/* ===== Wave 7: toast mais visível ===== */
+#toast.on {
+  animation: toast-pop 0.35s ease-out;
+}
+@keyframes toast-pop {
+  0% { transform: translate(-50%, 8px); opacity: 0; }
+  100% { transform: translate(-50%, 0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #toast.on { animation: none; }
+}
