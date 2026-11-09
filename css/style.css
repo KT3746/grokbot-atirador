@@ -353,3 +353,47 @@ body:not(.desktop) .hud-ammo { bottom: 170px; right: calc(160px + var(--safe-r))
 @media (prefers-reduced-motion: reduce) {
   #toast.on { animation: none; }
 }
+
+/* ===== Wave 8: batimento, luneta em perigo, tiro cirúrgico ===== */
+body.holding-breath::after {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 25;
+  background: radial-gradient(circle at 50% 50%, transparent 48%, rgba(120, 20, 30, 0.22) 100%);
+  animation: breathPulse 0.85s ease-in-out infinite;
+}
+@keyframes breathPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.85; }
+}
+#scope.danger .ring {
+  box-shadow: inset 0 0 0 3px rgba(255, 60, 50, 0.95), inset 0 0 60px rgba(180, 20, 10, 0.35);
+}
+#scope.danger #s-target {
+  color: #ff6b5e !important;
+  font-weight: 900;
+  text-shadow: 0 0 10px rgba(255, 40, 30, 0.9), 0 1px 2px #000;
+  animation: dangerBlink 0.55s ease-in-out infinite;
+}
+@keyframes dangerBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+#letterbox.surg .lb-label {
+  color: #ffd27a;
+  text-shadow: 0 0 12px rgba(255, 200, 80, 0.8);
+}
+#letterbox.surg #kc-lab::before {
+  content: "✦ ";
+}
+#banner.surg {
+  color: #ffd27a;
+  text-shadow: 0 0 20px rgba(255, 190, 60, 0.75), 0 2px 0 #000;
+  animation: surgPop 0.7s cubic-bezier(.2,1.2,.3,1) both;
+}
+@keyframes surgPop {
+  0% { transform: translate(-50%, -40%) scale(0.7); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.holding-breath::after, #scope.danger #s-target, #banner.surg { animation: none; }
+}
